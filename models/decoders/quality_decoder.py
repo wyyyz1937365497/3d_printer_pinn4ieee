@@ -1,7 +1,15 @@
 """
 Quality Prediction Decoder Head
 
-Predicts quality metrics including RUL, temperature, vibration, and quality score
+Predicts IMPLICIT QUALITY PARAMETERS that cannot be directly measured during printing:
+- Interlayer Adhesion Strength (层间粘合力)
+- Internal Stress (内应力)
+- Porosity (孔隙率)
+- Dimensional Accuracy (尺寸精度)
+- Overall Quality Score (综合质量评分)
+
+These parameters are inferred from observable sensor data (temperature, vibration, etc.)
+using physics-informed neural networks.
 """
 
 import torch
@@ -10,13 +18,24 @@ import torch.nn as nn
 
 class QualityPredictionHead(nn.Module):
     """
-    Quality prediction head for multi-task quality metrics
+    Quality prediction head for inferring implicit quality parameters
 
-    Outputs:
-    - RUL (Remaining Useful Life): Continuous value
-    - Temperature: Continuous value
-    - Vibration (X, Y): Continuous values
-    - Quality Score: Continuous value [0, 1]
+    This module predicts CRITICAL QUALITY METRICS that cannot be directly measured
+    during the printing process. Instead, it uses observable sensor data to infer
+    these hidden parameters through physics-informed learning.
+
+    Outputs (Implicit Quality Parameters):
+    - Interlayer Adhesion Strength (MPa): Bond strength between layers
+    - Internal Stress (MPa): Residual stress accumulated during printing
+    - Porosity (%): Void fraction in the printed part
+    - Dimensional Accuracy (mm): Deviation from intended dimensions
+    - Overall Quality Score [0, 1]: Composite quality indicator
+
+    Key Innovation:
+    - Bridges the gap between observable (temperature, vibration) and unobservable
+      (adhesion, stress) quality parameters
+    - Uses PINN to embed physical constraints relating these quantities
+    - Enables early stopping by predicting final quality from early-stage data
     """
 
     def __init__(self,
@@ -76,13 +95,13 @@ class QualityPredictionHead(nn.Module):
         # Pass through MLP
         predictions = self.mlp(pooled)  # [batch, num_outputs]
 
-        # Split into individual outputs
+        # Split into individual outputs (IMPLICIT QUALITY PARAMETERS)
         outputs = {
-            'rul': predictions[:, 0:1],  # Remaining Useful Life
-            'temperature': predictions[:, 1:2],  # Temperature
-            'vibration_x': predictions[:, 2:3],  # X-axis vibration
-            'vibration_y': predictions[:, 3:4],  # Y-axis vibration
-            'quality_score': torch.sigmoid(predictions[:, 4:5]),  # Quality score [0, 1]
+            'adhesion_strength': predictions[:, 0:1],  # Interlayer adhesion strength (MPa)
+            'internal_stress': predictions[:, 1:2],    # Internal/residual stress (MPa)
+            'porosity': torch.sigmoid(predictions[:, 2:3]) * 100,  # Porosity (%), [0, 100]
+            'dimensional_accuracy': predictions[:, 3:4],  # Dimensional accuracy error (mm)
+            'quality_score': torch.sigmoid(predictions[:, 4:5]),  # Overall quality score [0, 1]
         }
 
         return outputs

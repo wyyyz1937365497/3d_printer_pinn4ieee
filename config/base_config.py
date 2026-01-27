@@ -22,8 +22,8 @@ class DataConfig:
     sampling_rate: int = 1000  # Hz
 
     # Feature dimensions
-    num_features: int = 12  # Number of input features
-    num_quality_outputs: int = 5  # RUL, temp, vibration_x, vibration_y, quality_score
+    num_features: int = 12  # Number of input features (observable sensor data)
+    num_quality_outputs: int = 5  # Implicit quality parameters: adhesion_strength, internal_stress, porosity, dimensional_accuracy, quality_score
     num_fault_classes: int = 4  # Normal, Nozzle Clog, Mechanical Loose, Motor Fault
     num_trajectory_outputs: int = 3  # dx, dy, dz
 
