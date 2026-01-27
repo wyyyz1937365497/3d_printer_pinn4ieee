@@ -1,72 +1,60 @@
-function simulation_data = run_full_simulation(gcode_file, output_file, parser_options)
-% RUN_FULL_SIMULATION - Complete simulation of FDM 3D printing process
+function simulation_data = run_full_simulation_gpu(gcode_file, output_file, parser_options, gpu_id)
+% RUN_FULL_SIMULATION_GPU - GPU-accelerated complete FDM simulation
 %
-% This function orchestrates the complete simulation workflow:
-% 1. Load physics parameters
-% 2. Parse G-code (original or improved parser)
-% 3. Simulate trajectory error (dynamics)
-% 4. Simulate thermal field (heat transfer)
-% 5. Combine results into unified dataset
-% 6. Save to .mat file for Python processing
+% This is the GPU-accelerated version of run_full_simulation.m
+% Automatically uses GPU when beneficial, falls back to CPU otherwise.
 %
 % Inputs:
 %   gcode_file     - Path to G-code file (.gcode)
 %   output_file    - Path to output .mat file (optional)
-%   parser_options - Options for G-code parser (optional, struct with fields):
-%     .use_improved - Use improved parser (default: true)
-%     .layers       - 'first', 'all', or specific layer numbers (default: 'first')
-%     .include_skirt - Include skirt/brim (default: false)
+%   parser_options - Options for G-code parser (optional)
+%   gpu_id         - GPU device ID (optional, default: auto-select)
+%                    Use 1 for cuda1, [] for auto-select
 %
 % Output:
 %   simulation_data - Complete simulation results structure
 %
 % Examples:
-%   % Use improved parser (default, first layer only)
-%   data = run_full_simulation('print.gcode', 'simulation_results.mat');
+%   % Auto-select GPU with most free memory
+%   data = run_full_simulation_gpu('print.gcode', 'output.mat', [], []);
 %
-%   % Use improved parser for all layers
-%   opts = struct('use_improved', true, 'layers', 'all');
-%   data = run_full_simulation('print.gcode', 'simulation_results.mat', opts);
-%
-%   % Use original parser
-%   opts = struct('use_improved', false);
-%   data = run_full_simulation('print.gcode', 'simulation_results.mat', opts);
+%   % Use cuda1 specifically
+%   opts = struct('layers', 'first', 'use_improved', true);
+%   data = run_full_simulation_gpu('print.gcode', 'output.mat', opts, 1);
 
     fprintf('============================================================\n');
-    fprintf('FDM 3D PRINTER SIMULATION\n');
+    fprintf('GPU-ACCELERATED FDM 3D PRINTER SIMULATION\n');
     fprintf('============================================================\n');
     fprintf('\n');
 
     %% Check inputs
     if nargin < 1
-        % Default G-code file
         gcode_file = 'Tremendous Hillar_PLA_17m1s.gcode';
     end
 
     if nargin < 2
-        % Default output file
         [filepath, name, ~] = fileparts(gcode_file);
         output_file = fullfile(filepath, [name, '_simulation.mat']);
     end
 
     if nargin < 3
-        % Default parser options: use improved parser, first layer only
         parser_options = struct();
         parser_options.use_improved = true;
         parser_options.layers = 'first';
         parser_options.include_skirt = false;
     end
 
+    if nargin < 4
+        gpu_id = [];  % Auto-select
+    end
+
     fprintf('G-code file: %s\n', gcode_file);
     fprintf('Output file: %s\n', output_file);
+    fprintf('\n');
 
-    if isfield(parser_options, 'use_improved')
-        if parser_options.use_improved
-            fprintf('Parser: Improved (2D trajectory extraction)\n');
-        else
-            fprintf('Parser: Original (full 3D parsing)\n');
-        end
-    end
+    %% Step 0: Setup GPU
+    fprintf('STEP 0: Setting up GPU acceleration...\n');
+    gpu_info = setup_gpu(gpu_id);
     fprintf('\n');
 
     %% Step 1: Load physics parameters
@@ -78,55 +66,60 @@ function simulation_data = run_full_simulation(gcode_file, output_file, parser_o
     fprintf('STEP 2: Parsing G-code file...\n');
 
     if isfield(parser_options, 'use_improved') && parser_options.use_improved
-        % Use improved parser
         fprintf('  Using improved parser for 2D trajectory extraction\n');
         trajectory_data = parse_gcode_improved(gcode_file, params, parser_options);
     else
-        % Use original parser (preserved for backward compatibility)
         fprintf('  Using original parser\n');
         trajectory_data = parse_gcode(gcode_file, params);
     end
-    
-    % Visualize extracted trajectory
-    visualize_trajectory(trajectory_data, gcode_file);
-    
     fprintf('\n');
 
-    %% Step 3: Simulate trajectory error
-    fprintf('STEP 3: Simulating trajectory error (second-order dynamics)...\n');
-    trajectory_results = simulate_trajectory_error(trajectory_data, params);
+    %% Step 3: Simulate trajectory error (GPU or CPU)
+    fprintf('STEP 3: Simulating trajectory error...\n');
+
+    % Choose GPU or CPU based on data size and GPU availability
+    n_points = length(trajectory_data.time);
+
+    if gpu_info.use_gpu && n_points > 1000
+        fprintf('  Using GPU-accelerated simulation\n');
+        trajectory_results = simulate_trajectory_error_gpu(trajectory_data, params, gpu_info);
+    else
+        if gpu_info.available
+            fprintf('  Using CPU simulation (dataset too small: %d points)\n', n_points);
+        else
+            fprintf('  Using CPU simulation (GPU not available)\n');
+        end
+        trajectory_results = simulate_trajectory_error(trajectory_data, params);
+    end
     fprintf('\n');
 
     %% Step 4: Simulate thermal field
-    fprintf('STEP 4: Simulating thermal field (moving heat source)...\n');
+    fprintf('STEP 4: Simulating thermal field...\n');
     thermal_results = simulate_thermal_field(trajectory_data, params);
     fprintf('\n');
 
     %% Step 5: Combine results
     fprintf('STEP 5: Combining results into unified dataset...\n');
 
-    % Ensure all time series are aligned
     t = trajectory_data.time;
     n_points = length(t);
 
-    % Create unified output structure
     simulation_data = [];
 
     % === TIME ===
     simulation_data.time = t(:);
 
-    % === REFERENCE TRAJECTORY (G-code) ===
+    % === REFERENCE TRAJECTORY ===
     simulation_data.x_ref = trajectory_data.x(:);
     simulation_data.y_ref = trajectory_data.y(:);
     simulation_data.z_ref = trajectory_data.z(:);
 
-    % === ACTUAL TRAJECTORY (with dynamics) ===
+    % === ACTUAL TRAJECTORY ===
     simulation_data.x_act = trajectory_results.x_act(:);
     simulation_data.y_act = trajectory_results.y_act(:);
     simulation_data.z_act = trajectory_results.z_act(:);
 
     % === KINEMATICS ===
-    % Velocity
     simulation_data.vx_ref = trajectory_data.vx(:);
     simulation_data.vy_ref = trajectory_data.vy(:);
     simulation_data.vz_ref = trajectory_data.vz(:);
@@ -135,7 +128,6 @@ function simulation_data = run_full_simulation(gcode_file, output_file, parser_o
     simulation_data.vz_act = trajectory_results.vz_act(:);
     simulation_data.v_mag_ref = trajectory_data.v_actual(:);
 
-    % Acceleration
     simulation_data.ax_ref = trajectory_data.ax(:);
     simulation_data.ay_ref = trajectory_data.ay(:);
     simulation_data.az_ref = trajectory_data.az(:);
@@ -144,26 +136,20 @@ function simulation_data = run_full_simulation(gcode_file, output_file, parser_o
     simulation_data.az_act = trajectory_results.az_act(:);
     simulation_data.a_mag_ref = trajectory_data.acceleration(:);
 
-    % Jerk
     simulation_data.jx_ref = trajectory_data.jx(:);
     simulation_data.jy_ref = trajectory_data.jy(:);
     simulation_data.jz_ref = trajectory_data.jz(:);
     simulation_data.jerk_mag = trajectory_data.jerk(:);
 
     % === DYNAMICS ===
-    % Inertial forces
     simulation_data.F_inertia_x = trajectory_results.F_inertia_x(:);
     simulation_data.F_inertia_y = trajectory_results.F_inertia_y(:);
-
-    % Elastic forces (belt stretch)
     simulation_data.F_elastic_x = trajectory_results.F_elastic_x(:);
     simulation_data.F_elastic_y = trajectory_results.F_elastic_y(:);
-
-    % Belt stretch (displacement)
     simulation_data.belt_stretch_x = trajectory_results.belt_stretch_x(:);
     simulation_data.belt_stretch_y = trajectory_results.belt_stretch_y(:);
 
-    % === TRAJECTORY ERROR (as vectors!) ===
+    % === TRAJECTORY ERROR ===
     simulation_data.error_x = trajectory_results.error_x(:);
     simulation_data.error_y = trajectory_results.error_y(:);
     simulation_data.error_magnitude = trajectory_results.error_magnitude(:);
@@ -192,6 +178,9 @@ function simulation_data = run_full_simulation(gcode_file, output_file, parser_o
     % === SYSTEM PARAMETERS ===
     simulation_data.params = params;
 
+    % === GPU INFO ===
+    simulation_data.gpu_info = gpu_info;
+
     fprintf('  Combined dataset: %d time points\n', n_points);
     fprintf('  Number of variables: %d\n', length(fieldnames(simulation_data)));
     fprintf('\n');
@@ -208,13 +197,18 @@ function simulation_data = run_full_simulation(gcode_file, output_file, parser_o
     fprintf('============================================================\n');
     fprintf('\n');
 
+    fprintf('GPU ACCELERATION:\n');
+    if gpu_info.use_gpu
+        fprintf('  Used GPU: %s\n', gpu_info.name);
+        fprintf('  GPU Memory: %.2f GB free\n', gpu_info.memory);
+    else
+        fprintf('  Used CPU (GPU not available or not beneficial)\n');
+    end
+    fprintf('\n');
+
     fprintf('TRAJECTORY STATISTICS:\n');
-    fprintf('  Total print time: %.2f s (%.2f min)\n', ...
-            max(t), max(t)/60);
+    fprintf('  Total print time: %.2f s (%.2f min)\n', max(t), max(t)/60);
     fprintf('  Number of layers: %d\n', max(trajectory_data.layer_num));
-    fprintf('  Total extrusion distance: %.2f mm\n', ...
-            sum(simulation_data.v_mag_ref(simulation_data.is_extruding) .* ...
-                mean(diff(simulation_data.time))));
     fprintf('\n');
 
     fprintf('KINEMATICS:\n');
@@ -225,10 +219,8 @@ function simulation_data = run_full_simulation(gcode_file, output_file, parser_o
 
     fprintf('TRAJECTORY ERROR:\n');
     fprintf('  Max error magnitude: %.3f mm\n', max(simulation_data.error_magnitude));
-    fprintf('  RMS error magnitude: %.3f mm\n', ...
-            rms(simulation_data.error_magnitude));
-    fprintf('  Mean error magnitude: %.3f mm\n', ...
-            mean(simulation_data.error_magnitude));
+    fprintf('  RMS error magnitude: %.3f mm\n', rms(simulation_data.error_magnitude));
+    fprintf('  Mean error magnitude: %.3f mm\n', mean(simulation_data.error_magnitude));
     fprintf('  Max corner error: %.3f mm\n', ...
             max(simulation_data.error_magnitude(simulation_data.is_corner)));
     fprintf('\n');
@@ -239,8 +231,6 @@ function simulation_data = run_full_simulation(gcode_file, output_file, parser_o
             mean(simulation_data.T_interface(simulation_data.is_extruding)));
     fprintf('  Max cooling rate: %.2f °C/s\n', ...
             abs(min(simulation_data.cooling_rate)));
-    fprintf('  Mean interlayer time: %.2f s\n', ...
-            mean(simulation_data.interlayer_time(simulation_data.interlayer_time > 0)));
     fprintf('\n');
 
     fprintf('ADHESION:\n');
@@ -267,7 +257,7 @@ end
 function create_summary_plots(data, output_file)
     fprintf('Creating summary plots...\n');
 
-    fig = figure('Name', 'Simulation Summary', 'Position', [50, 50, 1600, 1000]);
+    fig = figure('Name', 'Simulation Summary (GPU)', 'Position', [50, 50, 1600, 1000]);
 
     % Trajectory error
     subplot(3, 4, 1);
@@ -385,92 +375,4 @@ function create_summary_plots(data, output_file)
     saveas(fig, fig_file);
     fprintf('  Summary plots saved to: %s\n', fig_file);
 
-end
-
-%% Helper function: Visualize extracted trajectory
-function visualize_trajectory(trajectory_data, gcode_file)
-    fprintf('Creating trajectory visualization...\n');
-    
-    % Create new figure for trajectory visualization
-    fig = figure('Name', sprintf('Trajectory Visualization - Layer %d Outer Wall', max(trajectory_data.layer_num)), ...
-                 'Position', [100, 100, 1200, 800]);
-    
-    % Plot 1: XY trajectory view
-    subplot(2, 3, 1);
-    plot(trajectory_data.x, trajectory_data.y, 'b-', 'LineWidth', 2);
-    hold on;
-    % Highlight corners
-    corners = trajectory_data.is_corner;
-    if any(corners)
-        plot(trajectory_data.x(corners), trajectory_data.y(corners), 'ro', 'MarkerSize', 8, 'MarkerFaceColor', 'r');
-    end
-    axis equal;
-    grid on;
-    xlabel('X (mm)');
-    ylabel('Y (mm)');
-    title('XY Trajectory View');
-    legend('Path', 'Corners', 'Location', 'best');
-    
-    % Plot 2: X and Y over time
-    subplot(2, 3, 2);
-    plot(trajectory_data.time, trajectory_data.x, 'r-', 'LineWidth', 1.5); hold on;
-    plot(trajectory_data.time, trajectory_data.y, 'b-', 'LineWidth', 1.5);
-    grid on;
-    xlabel('Time (s)');
-    ylabel('Position (mm)');
-    title('X and Y vs Time');
-    legend('X', 'Y', 'Location', 'best');
-    
-    % Plot 3: Z over time
-    subplot(2, 3, 3);
-    plot(trajectory_data.time, trajectory_data.z, 'g-', 'LineWidth', 1.5);
-    grid on;
-    xlabel('Time (s)');
-    ylabel('Z (mm)');
-    title('Z vs Time');
-    
-    % Plot 4: Velocity profile
-    subplot(2, 3, 4);
-    plot(trajectory_data.time, trajectory_data.v_actual, 'm-', 'LineWidth', 1.5);
-    grid on;
-    xlabel('Time (s)');
-    ylabel('Velocity (mm/s)');
-    title('Velocity Profile');
-    
-    % Plot 5: Acceleration profile
-    subplot(2, 3, 5);
-    plot(trajectory_data.time, trajectory_data.acceleration, 'c-', 'LineWidth', 1.5);
-    grid on;
-    xlabel('Time (s)');
-    ylabel('Acceleration (mm/s²)');
-    title('Acceleration Profile');
-    
-    % Plot 6: Layer and extrusion status
-    subplot(2, 3, 6);
-    yyaxis left
-    stairs(trajectory_data.time, trajectory_data.layer_num, 'k-', 'LineWidth', 1.5);
-    ylabel('Layer Number', 'Color', 'k');
-    hold on;
-    
-    yyaxis right
-    plot(trajectory_data.time, double(trajectory_data.is_extruding), 'r-', 'LineWidth', 1);
-    ylabel('Extruding (0/1)', 'Color', 'r');
-    
-    xlabel('Time (s)');
-    title('Layer Progression & Extrusion Status');
-    grid on;
-    
-    % Adjust layout
-    sgtitle(sprintf('Trajectory Visualization for %s (Layer %d, Outer Wall)', ...
-                    gcode_file, max(unique(trajectory_data.layer_num))));
-    
-    % Save figure
-    [~, name, ~] = fileparts(gcode_file);
-    fig_file = sprintf('%s_layer%d_trajectory_view.png', name, max(unique(trajectory_data.layer_num)));
-    saveas(fig, fig_file);
-    fprintf('  Trajectory visualization saved to: %s\n', fig_file);
-    
-    fprintf('  Trajectory visualization complete.\n');
-    fprintf('  Extracted %d points for layer %d (outer wall)\n', ...
-            length(trajectory_data.x), max(unique(trajectory_data.layer_num)));
 end

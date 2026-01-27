@@ -8,8 +8,8 @@ function trajectory_data = parse_gcode_improved(gcode_file, params, options)
 % - Different print types (perimeter, infill, etc.)
 % - Only extrusion moves (filters out travel moves)
 %
-# The original parse_gcode.m is preserved for backward compatibility.
-#
+% The original parse_gcode.m is preserved for backward compatibility.
+%
 % Inputs:
 %   gcode_file - Path to G-code file
 %   params     - Physics parameters (from physics_parameters.m)
@@ -200,9 +200,18 @@ function trajectory_data = parse_gcode_improved(gcode_file, params, options)
 
             % Calculate movement
             if ~isnan(new_x) || ~isnan(new_y)
-                x_new = isnan(new_x) ? state.x : new_x;
-                y_new = isnan(new_y) ? state.y : new_y;
-                z_new = isnan(new_z) ? state.z : new_z;
+                x_new = new_x;
+                if isnan(new_x)
+                    x_new = state.x;
+                end
+                y_new = new_y;
+                if isnan(new_y)
+                    y_new = state.y;
+                end
+                z_new = new_z;
+                if isnan(new_z)
+                    z_new = state.z;
+                end
 
                 dx = x_new - state.x;
                 dy = y_new - state.y;
@@ -216,7 +225,11 @@ function trajectory_data = parse_gcode_improved(gcode_file, params, options)
                     current_segment = current_segment + 1;
 
                     % Calculate time
-                    velocity = (isnan(new_f) ? state.f : new_f) / 60;  % mm/s
+                    if isnan(new_f)
+                        velocity = state.f / 60;  % mm/s
+                    else
+                        velocity = new_f / 60;  % mm/s
+                    end
                     segment_time = segment_length / velocity;
                     current_time = current_time + segment_time;
 
@@ -225,7 +238,11 @@ function trajectory_data = parse_gcode_improved(gcode_file, params, options)
                     data.y(point_idx) = y_new;
                     data.z(point_idx) = z_new;
                     data.e(point_idx) = new_e;
-                    data.f(point_idx) = isnan(new_f) ? state.f : new_f;
+                    if isnan(new_f)
+                        data.f(point_idx) = state.f;
+                    else
+                        data.f(point_idx) = new_f;
+                    end
                     data.is_extruding(point_idx) = true;
                     data.print_type{point_idx} = state.current_type;
                     data.layer_num(point_idx) = state.current_layer;
@@ -237,7 +254,11 @@ function trajectory_data = parse_gcode_improved(gcode_file, params, options)
                     state.y = y_new;
                     state.z = z_new;
                     state.e = new_e;
-                    state.f = isnan(new_f) ? state.f : new_f;
+                    if isnan(new_f)
+                        state.f = state.f;
+                    else
+                        state.f = new_f;
+                    end
                 end
             end
         end
@@ -250,228 +271,266 @@ function trajectory_data = parse_gcode_improved(gcode_file, params, options)
         error('No trajectory points found. Check G-code file and options.');
     end
 
+    data.x = data.x(1:n_points);
+    data.y = data.y(1:n_points);
+    data.z = data.z(1:n_points);
+    data.e = data.e(1:n_points);
+    data.f = data.f(1:n_points);
+    data.is_extruding = data.is_extruding(1:n_points);
+    data.print_type = data.print_type(1:n_points);
+    data.layer_num = data.layer_num(1:n_points);
+    data.segment_idx = data.segment_idx(1:n_points);
+    data.time = data.time(1:n_points);
+
     fprintf('  Extracted %d trajectory points\n', n_points);
 
-    % Trim all arrays
-    fields_to_trim = {'x', 'y', 'z', 'e', 'f', 'is_extruding', 'layer_num', ...
-                     'segment_idx', 'time'};
-    for i = 1:length(fields_to_trim)
-        field = fields_to_trim{i};
-        data.(field) = data.(field)(1:n_points);
-    end
-    data.print_type = data.print_type(1:n_points);
+    %% Calculate kinematics
+    fprintf('  Calculating kinematics...\n');
 
-    %% Calculate kinematic derivatives
-    fprintf('  Calculating kinematic derivatives...\n');
+    % Initialize kinematic variables
+    vx = zeros(n_points, 1);
+    vy = zeros(n_points, 1);
+    vz = zeros(n_points, 1);
+    ax = zeros(n_points, 1);
+    ay = zeros(n_points, 1);
+    az = zeros(n_points, 1);
+    jx = zeros(n_points, 1);
+    jy = zeros(n_points, 1);
+    jz = zeros(n_points, 1);
 
-    % Position differences
-    data.dx = zeros(n_points, 1);
-    data.dy = zeros(n_points, 1);
-    data.dz = zeros(n_points, 1);
-    data.dt = zeros(n_points, 1);
+    % Calculate velocities (using central differences for interior points)
+    dt = [data.time(1); diff(data.time)];  % Time intervals
+    dt(dt == 0) = NaN;  % Avoid division by zero
 
-    data.dx(2:end) = diff(data.x);
-    data.dy(2:end) = diff(data.y);
-    data.dz(2:end) = diff(data.z);
-    data.dt(2:end) = diff(data.time);
-
-    % Velocity
-    valid_dt = data.dt > 0;
-    data.vx = zeros(n_points, 1);
-    data.vy = zeros(n_points, 1);
-    data.vz = zeros(n_points, 1);
-    data.v_mag = zeros(n_points, 1);
-
-    data.vx(valid_dt) = data.dx(valid_dt) ./ data.dt(valid_dt);
-    data.vy(valid_dt) = data.dy(valid_dt) ./ data.dt(valid_dt);
-    data.vz(valid_dt) = data.dz(valid_dt) ./ data.dt(valid_dt);
-    data.v_mag(valid_dt) = sqrt(data.vx(valid_dt).^2 + data.vy(valid_dt).^2 + data.vz(valid_dt).^2);
-
-    % Acceleration
-    data.ax = zeros(n_points, 1);
-    data.ay = zeros(n_points, 1);
-    data.az = zeros(n_points, 1);
-    data.a_mag = zeros(n_points, 1);
-
-    valid_accel = valid_dt(2:end) & data.dt(1:end-1) > 0;
-    data.ax(2:end) = diff(data.vx) ./ data.dt(2:end);
-    data.ay(2:end) = diff(data.vy) ./ data.dt(2:end);
-    data.az(2:end) = diff(data.vz) ./ data.dt(2:end);
-    data.a_mag(2:end) = sqrt(data.ax(2:end).^2 + data.ay(2:end).^2 + data.az(2:end).^2);
-
-    % Jerk
-    data.jx = zeros(n_points, 1);
-    data.jy = zeros(n_points, 1);
-    data.jz = zeros(n_points, 1);
-    data.jerk = zeros(n_points, 1);
-
-    valid_jerk = valid_accel(2:end) & valid_dt(3:end);
-    data.jx(3:end) = diff(data.ax) ./ data.dt(3:end);
-    data.jy(3:end) = diff(data.ay) ./ data.dt(3:end);
-    data.jz(3:end) = diff(data.az) ./ data.dt(3:end);
-    data.jerk(3:end) = sqrt(data.jx(3:end).^2 + data.jy(3:end).^2 + data.jz(3:end).^2);
-
-    %% Detect corners
-    fprintf('  Detecting corners...\n');
-
-    data.is_corner = false(n_points, 1);
-    data.corner_angle = zeros(n_points, 1);
-    data.curvature = zeros(n_points, 1);
-
-    for i = 3:n_points
-        % Use three points to detect corners
-        p1 = [data.x(i-2), data.y(i-2)];
-        p2 = [data.x(i-1), data.y(i-1)];
-        p3 = [data.x(i),   data.y(i)];
-
-        % Vectors
-        v1 = p2 - p1;
-        v2 = p3 - p2;
-
-        % Skip if segments are too short
-        if norm(v1) < 1e-6 || norm(v2) < 1e-6
-            continue;
+    % Velocities
+    for i = 1:n_points
+        if i == 1
+            % Forward difference for first point
+            if n_points > 1
+                vx(i) = (data.x(2) - data.x(1)) / dt(2);
+                vy(i) = (data.y(2) - data.y(1)) / dt(2);
+                vz(i) = (data.z(2) - data.z(1)) / dt(2);
+            else
+                vx(i) = 0; vy(i) = 0; vz(i) = 0;
+            end
+        elseif i == n_points
+            % Backward difference for last point
+            vx(i) = (data.x(end) - data.x(end-1)) / dt(end);
+            vy(i) = (data.y(end) - data.y(end-1)) / dt(end);
+            vz(i) = (data.z(end) - data.z(end-1)) / dt(end);
+        else
+            % Central difference for interior points
+            vx(i) = (data.x(i+1) - data.x(i-1)) / (dt(i+1) + dt(i));
+            vy(i) = (data.y(i+1) - data.y(i-1)) / (dt(i+1) + dt(i));
+            vz(i) = (data.z(i+1) - data.z(i-1)) / (dt(i+1) + dt(i));
         end
-
-        % Calculate angle
-        cos_angle = dot(v1, v2) / (norm(v1) * norm(v2));
-        cos_angle = max(-1, min(1, cos_angle));
-        angle_rad = acos(cos_angle);
-        angle_deg = rad2deg(angle_rad);
-
-        data.corner_angle(i) = angle_deg;
-
-        % Mark as corner
-        if angle_deg > params.gcode.corner_angle_threshold
-            data.is_corner(i) = true;
-        end
-
-        % Calculate curvature
-        segment_length = norm(v2);
-        data.curvature(i) = angle_rad / (segment_length + 1e-6);
     end
 
-    n_corners = sum(data.is_corner);
-    fprintf('  Detected %d corners\n', n_corners);
+    % Calculate accelerations
+    for i = 1:n_points
+        if i == 1
+            % Forward difference for first point
+            if n_points > 1
+                ax(i) = (vx(2) - vx(1)) / dt(2);
+                ay(i) = (vy(2) - vy(1)) / dt(2);
+                az(i) = (vz(2) - vz(1)) / dt(2);
+            else
+                ax(i) = 0; ay(i) = 0; az(i) = 0;
+            end
+        elseif i == n_points
+            % Backward difference for last point
+            ax(i) = (vx(end) - vx(end-1)) / dt(end);
+            ay(i) = (vy(end) - vy(end-1)) / dt(end);
+            az(i) = (vz(end) - vz(end-1)) / dt(end);
+        else
+            % Central difference for interior points
+            ax(i) = (vx(i+1) - vx(i-1)) / (dt(i+1) + dt(i));
+            ay(i) = (vy(i+1) - vy(i-1)) / (dt(i+1) + dt(i));
+            az(i) = (vz(i+1) - vz(i-1)) / (dt(i+1) + dt(i));
+        end
+    end
 
-    %% Movement direction
-    data.direction_angle = atan2(data.dy, data.dx);  % radians
+    % Calculate jerks
+    for i = 1:n_points
+        if i == 1
+            % Forward difference for first point
+            if n_points > 1
+                jx(i) = (ax(2) - ax(1)) / dt(2);
+                jy(i) = (ay(2) - ay(1)) / dt(2);
+                jz(i) = (az(2) - az(1)) / dt(2);
+            else
+                jx(i) = 0; jy(i) = 0; jz(i) = 0;
+            end
+        elseif i == n_points
+            % Backward difference for last point
+            jx(i) = (ax(end) - ax(end-1)) / dt(end);
+            jy(i) = (ay(end) - ay(end-1)) / dt(end);
+            jz(i) = (az(end) - az(end-1)) / dt(end);
+        else
+            % Central difference for interior points
+            jx(i) = (ax(i+1) - ax(i-1)) / (dt(i+1) + dt(i));
+            jy(i) = (ay(i+1) - ay(i-1)) / (dt(i+1) + dt(i));
+            jz(i) = (az(i+1) - az(i-1)) / (dt(i+1) + dt(i));
+        end
+    end
 
-    %% Distance from last corner
-    data.dist_from_last_corner = inf(n_points, 1);
+    % Calculate magnitudes
+    v_actual = sqrt(vx.^2 + vy.^2 + vz.^2);
+    acceleration = sqrt(ax.^2 + ay.^2 + az.^2);
+    jerk = sqrt(jx.^2 + jy.^2 + jz.^2);
+
+    fprintf('  Kinematics calculated\n');
+
+    %% Detect corners and features
+    fprintf('  Detecting corners and geometric features...\n');
+
+    % Initialize feature arrays
+    is_corner = false(n_points, 1);
+    corner_angle = zeros(n_points, 1);
+    curvature = zeros(n_points, 1);
+    dist_from_last_corner = zeros(n_points, 1);
+
+    % Calculate corner detection (based on angle change in velocity vector)
+    vel_vectors = [vx, vy, vz];
+    vel_magnitudes = sqrt(sum(vel_vectors.^2, 2));
+    
+    % Normalize velocity vectors
+    valid_idx = vel_magnitudes > 1e-6;  % Avoid division by zero
+    vel_unit = vel_vectors;
+    vel_unit(valid_idx, :) = vel_unit(valid_idx, :) ./ vel_magnitudes(valid_idx, 1);
+
+    % Detect corners based on velocity direction changes
+    for i = 2:n_points-1
+        if valid_idx(i-1) && valid_idx(i) && valid_idx(i+1)
+            % Dot product of velocity directions before and after point i
+            dot_product = dot(vel_unit(i-1, :), vel_unit(i+1, :));
+            % Clamp to [-1, 1] to avoid numerical errors in acos
+            dot_product = max(-1, min(1, dot_product));
+            
+            angle_change = acos(dot_product);  % in radians
+            corner_angle_degrees = rad2deg(angle_change);
+            
+            % Mark as corner if angle change is significant (>30 degrees)
+            if corner_angle_degrees > 30
+                is_corner(i) = true;
+                corner_angle(i) = corner_angle_degrees;
+            end
+        end
+    end
+
+    % Calculate curvature (how sharply the path turns at each point)
+    for i = 2:n_points-1
+        if valid_idx(i-1) && valid_idx(i) && valid_idx(i+1)
+            % Cross product to determine turning direction
+            cross_prod = cross(vel_unit(i-1, :), vel_unit(i+1, :));
+            curvature(i) = norm(cross_prod);
+        end
+    end
+
+    % Calculate distance from last corner
     last_corner_idx = 0;
     for i = 1:n_points
-        if data.is_corner(i)
+        if is_corner(i)
             last_corner_idx = i;
-        end
-        if last_corner_idx > 0
-            data.dist_from_last_corner(i) = sqrt(...
-                (data.x(i) - data.x(last_corner_idx))^2 + ...
-                (data.y(i) - data.y(last_corner_idx))^2);
+            dist_from_last_corner(i) = 0;
+        elseif last_corner_idx > 0
+            % Calculate cumulative distance since last corner
+            dist_from_last_corner(i) = sum(sqrt(...
+                diff(data.x(last_corner_idx:i)).^2 + ...
+                diff(data.y(last_corner_idx:i)).^2 + ...
+                diff(data.z(last_corner_idx:i)).^2));
+        else
+            % If no corner yet, calculate from beginning
+            if i > 1
+                dist_from_last_corner(i) = sum(sqrt(...
+                    diff(data.x(1:i)).^2 + ...
+                    diff(data.y(1:i)).^2 + ...
+                    diff(data.z(1:i)).^2));
+            end
         end
     end
 
-    %% Create output structure (compatible with original parser)
-    trajectory_data = [];
+    fprintf('  Features detected\n');
 
-    % Time
-    trajectory_data.time = data.time;
+    %% Create output structure
+    trajectory_data = struct();
 
-    % Position
+    % Coordinates
     trajectory_data.x = data.x;
     trajectory_data.y = data.y;
     trajectory_data.z = data.z;
 
-    % Extrusion
-    trajectory_data.e = data.e;
-
-    % Flags (for compatibility)
-    trajectory_data.is_extruding = data.is_extruding;
-    trajectory_data.is_travel = ~data.is_extruding;
-    trajectory_data.is_corner = data.is_corner;
-
     % Kinematics
-    trajectory_data.vx = data.vx;
-    trajectory_data.vy = data.vy;
-    trajectory_data.vz = data.vz;
-    trajectory_data.v_actual = data.v_mag;
-
-    trajectory_data.ax = data.ax;
-    trajectory_data.ay = data.ay;
-    trajectory_data.az = data.az;
-    trajectory_data.acceleration = data.a_mag;
-
-    trajectory_data.jx = data.jx;
-    trajectory_data.jy = data.jy;
-    trajectory_data.jz = data.jz;
-    trajectory_data.jerk = data.jerk;
+    trajectory_data.vx = vx;
+    trajectory_data.vy = vy;
+    trajectory_data.vz = vz;
+    trajectory_data.v_actual = v_actual;
+    trajectory_data.ax = ax;
+    trajectory_data.ay = ay;
+    trajectory_data.az = az;
+    trajectory_data.acceleration = acceleration;
+    trajectory_data.jx = jx;
+    trajectory_data.jy = jy;
+    trajectory_data.jz = jz;
+    trajectory_data.jerk = jerk;
 
     % Features
-    trajectory_data.corner_angle = data.corner_angle;
-    trajectory_data.curvature = data.curvature;
+    trajectory_data.is_extruding = data.is_extruding;
+    trajectory_data.is_travel = ~data.is_extruding;
+    trajectory_data.is_corner = is_corner;
+    trajectory_data.corner_angle = corner_angle;
+    trajectory_data.curvature = curvature;
     trajectory_data.layer_num = data.layer_num;
-    trajectory_data.dist_from_last_corner = data.dist_from_last_corner;
+    trajectory_data.dist_from_last_corner = dist_from_last_corner;
 
-    % Feed rate
-    trajectory_data.f = data.f;
-
-    % Additional fields specific to improved parser
-    trajectory_data.print_type = data.print_type;
+    % Time and segments
+    trajectory_data.time = data.time;
     trajectory_data.segment_idx = data.segment_idx;
-    trajectory_data.dx = data.dx;
-    trajectory_data.dy = data.dy;
-    trajectory_data.dz = data.dz;
 
-    %% Print summary
-    fprintf('  G-code parsing complete!\n');
-    fprintf('\n');
-    fprintf('  Summary:\n');
-    fprintf('    Time range: %.2f - %.2f s\n', min(data.time), max(data.time));
-    fprintf('    X range: %.2f - %.2f mm\n', min(data.x), max(data.x));
-    fprintf('    Y range: %.2f - %.2f mm\n', min(data.y), max(data.y));
-    fprintf('    Z range: %.2f - %.2f mm\n', min(data.z), max(data.z));
-    fprintf('    Layers extracted: %d\n', length(unique(data.layer_num)));
-    fprintf('    Total points: %d\n', n_points);
-    fprintf('    Corners: %d\n', n_corners);
-    fprintf('    Max velocity: %.2f mm/s\n', max(data.v_mag));
-    fprintf('    Max acceleration: %.2f mm/s²\n', max(data.a_mag));
-    fprintf('    Max jerk: %.2f mm/s³\n', max(data.jerk));
-    fprintf('\n');
+    fprintf('  Trajectory extraction completed\n');
+    fprintf('  Points: %d\n', n_points);
+    fprintf('  Duration: %.2f s\n', data.time(end));
+    fprintf('  Estimated print time: %.2f min\n', data.time(end)/60);
 
 end
 
-%% Helper function: Parse G1 line
+% Helper function to parse G1/G0 line
 function [x, y, z, e, f] = parse_g1_line(line, state)
-    % Parse a G0/G1 line and extract coordinates
-    x = NaN;
-    y = NaN;
-    z = NaN;
-    e = NaN;
-    f = NaN;
+% PARSE_G1_LINE - Parse a G-code line to extract coordinates and feedrate
+    x = NaN; y = NaN; z = NaN; e = NaN; f = NaN;
 
-    % Tokenize
-    tokens = regexp(line, '[A-Z][-+]?[0-9.]*', 'match');
+    % Match coordinate values using regular expressions
+    x_match = regexp(line, 'X\s*([+-]?\d*\.?\d+)', 'match');
+    y_match = regexp(line, 'Y\s*([+-]?\d*\.?\d+)', 'match');
+    z_match = regexp(line, 'Z\s*([+-]?\d*\.?\d+)', 'match');
+    e_match = regexp(line, 'E\s*([+-]?\d*\.?\d+)', 'match');
+    f_match = regexp(line, 'F\s*([+-]?\d*\.?\d+)', 'match');
 
-    for i = 1:length(tokens)
-        token = tokens{i};
-        cmd = token(1);
-        val = str2double(token(2:end));
+    if ~isempty(x_match)
+        x = str2double(extract_numbers(x_match{1}));
+    end
+    if ~isempty(y_match)
+        y = str2double(extract_numbers(y_match{1}));
+    end
+    if ~isempty(z_match)
+        z = str2double(extract_numbers(z_match{1}));
+    end
+    if ~isempty(e_match)
+        e = str2double(extract_numbers(e_match{1}));
+    end
+    if ~isempty(f_match)
+        f = str2double(extract_numbers(f_match{1}));
+    end
+end
 
-        if isnan(val)
-            continue;
-        end
-
-        switch cmd
-            case 'X'
-                x = val;
-            case 'Y'
-                y = val;
-            case 'Z'
-                z = val;
-            case 'E'
-                e = val;
-            case 'F'
-                f = val;
-        end
+% Helper function to extract numbers from matched strings
+function num_str = extract_numbers(match_str)
+    % Extract numeric part from string like 'X123.45' or 'F1500'
+    num_pos = regexp(match_str, '[0-9+\-\.]');
+    if ~isempty(num_pos)
+        start_pos = num_pos(1);
+        num_str = match_str(start_pos:end);
+    else
+        num_str = '0';
     end
 end

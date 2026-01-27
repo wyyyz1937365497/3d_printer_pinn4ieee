@@ -28,9 +28,9 @@ function thermal_results = simulate_thermal_field(trajectory_data, params)
 
     %% Extract trajectory data
     t = trajectory_data.time;
-    x_nozzle = trajectory_data.x_act;  % Use actual trajectory from dynamics
-    y_nozzle = trajectory_data.y_act;
-    z_nozzle = trajectory_data.z_ref;
+    x_nozzle = trajectory_data.x;  % Use reference trajectory initially
+    y_nozzle = trajectory_data.y;
+    z_nozzle = trajectory_data.z;
     v_extrude = trajectory_data.v_actual;  % mm/s
 
     n_points = length(t);
@@ -161,10 +161,11 @@ function thermal_results = simulate_thermal_field(trajectory_data, params)
                 end
             end
 
-            % Cooling model
-            cooling_constant = h_total / (rho * cp * (dz*1e-3));  % 1/s
+            % Cooling model with protection against division by zero
+            thickness_m = max(dz*1e-3, 1e-6); % Ensure minimum thickness
+            cooling_constant = h_total / (rho * cp * thickness_m + 1e-10);  % 1/s, avoid division by zero
             T_local = (T_nozzle - params.environment.ambient_temp) * ...
-                      exp(-cooling_constant * time_since_extrusion) + ...
+                      exp(-max(cooling_constant, 1e-6) * time_since_extrusion) + ...
                       params.environment.ambient_temp;
         end
 
@@ -190,10 +191,17 @@ function thermal_results = simulate_thermal_field(trajectory_data, params)
                     time_diff = t(i) - t(prev_idx);
 
                     % Temperature of previous layer at this location
-                    T_prev_layer = T_nozzle_history(prev_idx) * exp(-cooling_constant * time_diff) + ...
-                                   params.environment.ambient_temp * (1 - exp(-cooling_constant * time_diff));
+                    % Avoid NaN in exponential calculation
+                    valid_time_diff = max(time_diff, 0);
+                    decay_factor = exp(-max(cooling_constant, 1e-6) * valid_time_diff);
+                    T_prev_layer = T_nozzle_history(prev_idx) * decay_factor + ...
+                                   params.environment.ambient_temp * (1 - decay_factor);
 
                     T_interface(i) = (T_local + T_prev_layer) / 2;  % Average
+                    % Ensure finite values
+                    if ~isfinite(T_interface(i))
+                        T_interface(i) = params.environment.ambient_temp;
+                    end
                 else
                     T_interface(i) = params.environment.ambient_temp;
                 end
@@ -208,11 +216,23 @@ function thermal_results = simulate_thermal_field(trajectory_data, params)
         T_surface(i) = T_local;
 
         %% Cooling rate
-        if i > 1
-            cooling_rate(i) = (T_local - T_prev) / (t(i) - t(i-1));
+        if i > 1 && (t(i) - t(i-1)) > 1e-6
+            dt_step = t(i) - t(i-1);
+            cooling_rate(i) = (T_local - T_prev) / dt_step;
+            % Protect against extreme values
+            if abs(cooling_rate(i)) > 1e6
+                cooling_rate(i) = sign(cooling_rate(i)) * 1e6;
+            end
+        else
+            cooling_rate(i) = 0;
         end
 
         T_prev = T_local;
+        
+        % Ensure all temperatures are finite
+        if ~isfinite(T_local)
+            T_local = params.environment.ambient_temp;
+        end
     end
 
     %% Calculate thermal metrics
@@ -251,20 +271,39 @@ function thermal_results = simulate_thermal_field(trajectory_data, params)
             T_int = T_interface(i);
 
             % Healing ratio based on temperature
-            if T_int < params.material.glass_transition
+            if T_int < params.material.glass_transition || ~isfinite(T_int)
                 healing_ratio = 0;
-            elseif T_int < params.material.melting_point
-                % Linear ramp from Tg to Tm
-                healing_ratio = (T_int - params.material.glass_transition) / ...
-                               (params.material.melting_point - params.material.glass_transition);
-            else
+            elseif T_int >= params.material.melting_point
                 healing_ratio = 1.0;
+            else
+                % Linear ramp from Tg to Tm
+                delta_T = params.material.melting_point - params.material.glass_transition;
+                if abs(delta_T) < 1e-6
+                    healing_ratio = 0.5; % Avoid division by zero
+                else
+                    healing_ratio = (T_int - params.material.glass_transition) / delta_T;
+                end
             end
 
             % Adjust for cooling rate (fast cooling = poor healing)
-            cooling_factor = min(1.0, 10 / (abs(cooling_rate(i)) + 1));
+            cooling_val = abs(cooling_rate(i));
+            if ~isfinite(cooling_val) || cooling_val > 1e6
+                cooling_factor = 0.1; % Assume very fast cooling
+            else
+                cooling_factor = min(1.0, 10 / (cooling_val + 1));
+            end
 
             adhesion_ratio(i) = healing_ratio * cooling_factor;
+            
+            % Final check for finite values
+            if ~isfinite(adhesion_ratio(i)) || adhesion_ratio(i) < 0
+                adhesion_ratio(i) = 0;
+            end
+            if adhesion_ratio(i) > 1
+                adhesion_ratio(i) = 1;
+            end
+        else
+            adhesion_ratio(i) = 0; % Default value
         end
     end
 
@@ -367,10 +406,16 @@ function thermal_results = simulate_thermal_field(trajectory_data, params)
     thermal_results.time_above_tg = time_above_tg;        % s
 
     % Interlayer
+    % Clean up interlayer time data
+    interlayer_time(~isfinite(interlayer_time)) = 0;
     thermal_results.interlayer_time = interlayer_time;    % s
     thermal_results.mean_interlayer_time = mean_interlayer_time;  % s
 
     % Adhesion strength
+    % Clean up adhesion ratio data
+    adhesion_ratio(~isfinite(adhesion_ratio)) = 0;
+    adhesion_ratio(adhesion_ratio < 0) = 0;
+    adhesion_ratio(adhesion_ratio > 1) = 1;
     thermal_results.adhesion_ratio = adhesion_ratio;      % -
     thermal_results.mean_adhesion = mean_adhesion;        % -
     thermal_results.min_adhesion = min_adhesion;          % -

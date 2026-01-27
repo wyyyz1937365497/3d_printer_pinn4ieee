@@ -71,7 +71,7 @@ function results = simulate_trajectory_error(trajectory_data, params)
     ax_ref_uniform = interp1(t, ax_ref, t_uniform, 'linear', 'extrap');
     ay_ref_uniform = interp1(t, ay_ref, t_uniform, 'linear', 'extrap');
 
-    %% Simulate X-axis dynamics (second-order system)
+    %% Simulate X-axis dynamics (second-order system) with stability check
     fprintf('  Simulating X-axis dynamics...\n');
 
     % State space: [x; v] where x is position error, v is velocity error
@@ -92,18 +92,36 @@ function results = simulate_trajectory_error(trajectory_data, params)
           -kx/mx, -cx/mx];
     Bx = [0; -1];  % Input is acceleration
 
-    % Time integration (Euler method)
+    % Time integration (more stable RK4 method)
     for i = 2:n_uniform
-        % State update: x(k+1) = x(k) + dt * (Ax*x(k) + Bx*u(k))
-        dx = Ax * x_state(:, i-1) + Bx * ax_ref_uniform(i-1);
-        x_state(:, i) = x_state(:, i-1) + dt_actual * dx;
+        % RK4 integration for better stability
+        k1 = Ax * x_state(:, i-1) + Bx * ax_ref_uniform(i-1);
+        k2 = Ax * (x_state(:, i-1) + 0.5*dt_actual*k1) + Bx * ax_ref_uniform(i-1);
+        k3 = Ax * (x_state(:, i-1) + 0.5*dt_actual*k2) + Bx * ax_ref_uniform(i-1);
+        k4 = Ax * (x_state(:, i-1) + dt_actual*k3) + Bx * ax_ref_uniform(i-1);
+        
+        x_state(:, i) = x_state(:, i-1) + (dt_actual/6) * (k1 + 2*k2 + 2*k3 + k4);
+        
+        % Safety check: prevent blow-up
+        if any(isnan(x_state(:, i))) || any(isinf(x_state(:, i)))
+            fprintf('Warning: NaN or Inf detected in X-axis simulation at step %d\n', i);
+            x_state(:, i) = x_state(:, i-1);
+        end
+        
+        % Limit error growth to reasonable bounds
+        if abs(x_state(1, i)) > 100  % More realistic limit
+            x_state(1, i) = sign(x_state(1, i)) * 100;
+        end
+        if abs(x_state(2, i)) > 1000  % More realistic velocity limit
+            x_state(2, i) = sign(x_state(2, i)) * 1000;
+        end
     end
 
     % Extract actual position
     x_act_uniform = x_ref_uniform + x_state(1, :);
     vx_act_uniform = gradient(x_act_uniform, dt_actual);
 
-    %% Simulate Y-axis dynamics
+    %% Simulate Y-axis dynamics with stability check
     fprintf('  Simulating Y-axis dynamics...\n');
 
     y_state = zeros(2, n_uniform);
@@ -114,8 +132,27 @@ function results = simulate_trajectory_error(trajectory_data, params)
     By = [0; -1];
 
     for i = 2:n_uniform
-        dy = Ay * y_state(:, i-1) + By * ay_ref_uniform(i-1);
-        y_state(:, i) = y_state(:, i-1) + dt_actual * dy;
+        % RK4 integration for better stability
+        k1 = Ay * y_state(:, i-1) + By * ay_ref_uniform(i-1);
+        k2 = Ay * (y_state(:, i-1) + 0.5*dt_actual*k1) + By * ay_ref_uniform(i-1);
+        k3 = Ay * (y_state(:, i-1) + 0.5*dt_actual*k2) + By * ay_ref_uniform(i-1);
+        k4 = Ay * (y_state(:, i-1) + dt_actual*k3) + By * ay_ref_uniform(i-1);
+        
+        y_state(:, i) = y_state(:, i-1) + (dt_actual/6) * (k1 + 2*k2 + 2*k3 + k4);
+        
+        % Safety check: prevent blow-up
+        if any(isnan(y_state(:, i))) || any(isinf(y_state(:, i)))
+            fprintf('Warning: NaN or Inf detected in Y-axis simulation at step %d\n', i);
+            y_state(:, i) = y_state(:, i-1);
+        end
+        
+        % Limit error growth to reasonable bounds
+        if abs(y_state(1, i)) > 100  % More realistic limit
+            y_state(1, i) = sign(y_state(1, i)) * 100;
+        end
+        if abs(y_state(2, i)) > 1000  % More realistic velocity limit
+            y_state(2, i) = sign(y_state(2, i)) * 1000;
+        end
     end
 
     y_act_uniform = y_ref_uniform + y_state(1, :);
