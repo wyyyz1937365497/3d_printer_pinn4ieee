@@ -3,7 +3,9 @@
     "allow": [
       "Bash(matlab:*)",
       "Bash(ls:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(findstr:*)",
+      "mcp__web-search-prime__webSearchPrime"
     ]
   }
 }

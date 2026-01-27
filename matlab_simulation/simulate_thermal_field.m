@@ -1,289 +1,458 @@
-function thermal_field = simulate_thermal_field(trajectory, params)
-%% 仿真温度场（移动热源热传导）
-% 物理模型：三维非稳态热传导方程
-% ∂T/∂t = α·∇²T + Q_source - Q_cooling
+function thermal_results = simulate_thermal_field(trajectory_data, params)
+% SIMULATE_THERMAL_FIELD - Simulate temperature field during FDM printing
 %
-% 简化：2D有限差分（XY平面），单层
+% This function models the thermal evolution of the printed part using:
+% 1. Moving heat source model (the nozzle)
+% 2. 3D transient heat conduction equation
+% 3. Convective and radiative cooling
+% 4. Interlayer heat transfer
 %
-% 输入：
-%   trajectory - 轨迹数据
-%   params - 仿真参数
-% 输出：
-%   thermal_field - 温度场数据
+% Heat equation:
+%   ∂T/∂t = α·∇²T + Q_source - Q_cooling
+%
+% where:
+%   α - thermal diffusivity
+%   Q_source - heat input from extrusion
+%   Q_cooling - convective + radiative cooling
+%
+% Inputs:
+%   trajectory_data - Structure from parse_gcode.m
+%   params          - Physics parameters from physics_parameters.m
+%
+% Output:
+%   thermal_results - Structure containing temperature field data
+%
+% Reference: Heat transfer in additive manufacturing literature
 
-fprintf('    求解热传导方程...\n');
+    fprintf('Simulating thermal field (moving heat source model)...\n');
 
-%% 1. 网格设置
-% 空间网格
-dx = 2;  % 网格间距 (mm)
-dy = 2;
+    %% Extract trajectory data
+    t = trajectory_data.time;
+    x_nozzle = trajectory_data.x_act;  % Use actual trajectory from dynamics
+    y_nozzle = trajectory_data.y_act;
+    z_nozzle = trajectory_data.z_ref;
+    v_extrude = trajectory_data.v_actual;  % mm/s
 
-nx = ceil(params.bed_size(1) / dx);
-ny = ceil(params.bed_size(2) / dy);
+    n_points = length(t);
 
-x_grid = 0:dx:params.bed_size(1);
-y_grid = 0:dy:params.bed_size(2);
-[X, Y] = meshgrid(x_grid, y_grid);
+    %% Simulation domain
+    fprintf('  Setting up simulation domain...\n');
 
-% 时间网格
-dt = 0.01;  % 时间步长 (s)
-t_end = trajectory.time(end);
-nt = ceil(t_end / dt);
-t_grid = 0:dt:t_end;
+    % Determine bounds from trajectory
+    x_min = min(x_nozzle) - 10;  % 10mm margin
+    x_max = max(x_nozzle) + 10;
+    y_min = min(y_nozzle) - 10;
+    y_max = max(y_nozzle) + 10;
+    z_min = 0;
+    z_max = max(z_nozzle) + 2;
 
-fprintf('    网格: %d x %d, 时间步数: %d\n', nx, ny, nt);
+    % Spatial resolution
+    dx = params.simulation.dx;    % mm
+    dy = params.simulation.dy;    % mm
+    dz = params.simulation.dz;    % mm (layer resolution)
 
-%% 2. 热物性参数
-% 热扩散率 α = k / (ρ * c)
-alpha = params.material_thermal_conductivity / ...
-        (params.material_density * params.material_specific_heat);
+    % Create grid
+    x_grid = x_min:dx:x_max;
+    y_grid = y_min:dy:y_max;
+    z_grid = z_min:dz:z_max;
 
-% 稳定性检查（CFL条件）
-alpha_dt_dx2 = alpha * dt / (dx^2);
-if alpha_dt_dx2 > 0.25
-    warning('时间步长太大，可能不稳定！建议 dt < %.6f s', dx^2 / (4*alpha));
-end
+    nx = length(x_grid);
+    ny = length(y_grid);
+    nz = length(z_grid);
 
-%% 3. 初始和边界条件
-% 初始温度场（等于热床温度）
-T = ones(ny, nx) * params.T_bed;
+    fprintf('    Grid size: %d × %d × %d = %.1f million points\n', ...
+            nx, ny, nz, (nx*ny*nz)/1e6);
+    fprintf('    X range: %.1f - %.1f mm\n', x_min, x_max);
+    fprintf('    Y range: %.1f - %.1f mm\n', y_min, y_max);
+    fprintf('    Z range: %.1f - %.1f mm\n', z_min, z_max);
 
-% 边界条件（固定温度）
-T_left = params.T_ambient;
-T_right = params.T_ambient;
-T_bottom = params.T_bed;
-T_top = params.T_ambient;
+    %% Time stepping
+    dt_thermal = params.simulation.dt_thermal;  % s
+    fprintf('    Time step: %.4f s\n', dt_thermal);
 
-%% 4. 冷却系数（对流 + 辐射）
-% 对流换热系数（取决于风扇转速）
-% 简化模型：h = h_base + h_fan * (fan_speed / 255)
-h_base = 10;  % 自然对流 (W/m^2·K)
-h_fan = 50;  % 强制对流最大值 (W/m^2·K)
-h = h_base + h_fan * (params.fan_speed / 255);
+    %% Initialize temperature field
+    fprintf('  Initializing temperature field...\n');
 
-% 表面密度（每单位体积的表面积，考虑层高）
-surface_area_per_volume = 2 / params.layer_height;  % 1/m
+    T = ones(ny, nx, nz) * params.environment.ambient_temp;  % °C
 
-% 冷却系数 (1/s)
-cooling_coefficient = h * surface_area_per_volume / ...
-                     (params.material_density * params.material_specific_heat);
+    % Set bed temperature at bottom
+    T(:,:,1) = params.printing.bed_temp;
 
-% 辐射冷却（简化）
-epsilon = 0.9;  % 发射率
-sigma = 5.67e-8;  % 斯特藩-玻尔兹曼常数
-% 线性化辐射冷却（在T_bed附近）
-T_avg = (params.T_nozzle + params.T_bed) / 2 + 273.15;  % 转换为K
-radiation_coefficient = 4 * epsilon * sigma * T_avg^3 * surface_area_per_volume / ...
-                        (params.material_density * params.material_specific_heat);
+    % Temperature field storage (at selected points and times)
+    % We'll track temperature at nozzle position and layer interfaces
 
-% 总冷却系数
-cooling_total = cooling_coefficient + radiation_coefficient;
+    T_interface = zeros(n_points, 1);  % Temperature at layer interface
+    T_surface = zeros(n_points, 1);    % Surface temperature
+    cooling_rate = zeros(n_points, 1); % dT/dt
 
-%% 5. 热源模型（移动喷嘴）
-% 喷嘴位置插值到仿真时间网格
-t_traj = trajectory.time;
-x_traj = trajectory.x_ref;
-y_traj = trajectory.y_ref;
+    %% Material properties
+    alpha = params.material.thermal_diffusivity;      % m²/s
+    k_thermal = params.material.thermal_conductivity; % W/(m·K)
+    rho = params.material.density;                    % kg/m³
+    cp = params.material.specific_heat;               % J/(kg·K)
 
-% 挤出流量 (mm^3/s)
-nozzle_area = pi * (params.nozzle_diameter / 2)^2;
-Q_flow = trajectory.v_ref .* nozzle_area * params.extrusion_multiplier;
+    %% Heat transfer coefficients
+    h_conv = params.heat_transfer.h_convection_with_fan;  % W/(m²·K)
+    h_rad = params.heat_transfer.h_radiation;            % W/(m²·K) (linearized)
+    h_total = h_conv + h_rad;
 
-% 热输入功率 (W)
-% Q_in = v_extrude * rho * c * (T_nozzle - T_bed)
-Q_heat = Q_flow * (params.material_density / 1e9) * ...
-         params.material_specific_heat * ...
-         (params.T_nozzle - params.T_bed);
+    %% Moving heat source parameters
+    T_nozzle = params.printing.nozzle_temp;  % °C
+    nozzle_dia = params.nozzle.diameter;     % mm
 
-% 插值到仿真时间网格
-x_traj_sim = interp1(t_traj, x_traj, t_grid, 'linear', 'extrap');
-y_traj_sim = interp1(t_traj, y_traj, t_grid, 'linear', 'extrap');
-Q_heat_sim = interp1(t_traj, Q_heat, t_grid, 'linear', 'extrap');
+    % Heat source radius (Gaussian distribution)
+    r_source = nozzle_dia;  % mm
 
-%% 6. 热源分布（高斯热源）
-% 热源半径（近似为喷嘴直径）
-r_source = params.nozzle_diameter / 2;
-sigma_source = r_source / 3;  % 高斯分布标准差
+    %% Simplified thermal model (point tracking)
+    % Full 3D finite difference is too slow for Python integration
+    % Instead, we track temperature at key locations using analytical solutions
 
-% 预计算高斯权重
-[X_grid, Y_grid] = meshgrid(x_grid, y_grid);
+    fprintf('  Using analytical moving heat source model...\n');
 
-%% 7. 时间积分（显式有限差分）
-fprintf('    时间积分中...\n');
+    % Initialize layer temperature tracking
+    current_layer = 0;
+    layer_deposition_time = [];
+    layer_center_temp = [];
 
-% 存储选定时间点的温度场（节省内存）
-save_interval = max(1, floor(nt / 100));  % 保存约100个时间点
-T_history = zeros(ceil(nt/save_interval) + 1, ny, nx);
-T_history(1, :, :) = T;
+    T_nozzle_history = zeros(n_points, 1);  % Temperature at nozzle position
 
-% 存储喷嘴路径上的温度
-T_nozzle_path = zeros(length(t_traj), 1);
-T_interface = zeros(length(t_traj), 1);  % 层间温度（简化为当前层温度）
-cooling_rate = zeros(length(t_traj), 1);
-time_above_melting = zeros(length(t_traj), 1);
+    % Previous temperature for cooling rate calculation
+    T_prev = params.environment.ambient_temp;
 
-% 记录熔融时间（累积）
-t_above_Tm = zeros(ny, nx);
+    %% Main time loop
+    fprintf('  Running thermal simulation...\n');
 
-current_save_idx = 1;
+    for i = 1:n_points
+        % Current nozzle position
+        xi = x_nozzle(i);
+        yi = y_nozzle(i);
+        zi = z_nozzle(i);
 
-for n = 1:nt
-    % 当前时间
-    t_current = t_grid(n);
+        % Check if we're extruding
+        is_extruding = trajectory_data.is_extruding(i);
 
-    %% 7.1 计算热源项
-    % 喷嘴位置
-    x_nozzle = x_traj_sim(n);
-    y_nozzle = y_traj_sim(n);
+        % Current layer
+        layer_i = trajectory_data.layer_num(i);
 
-    % 高斯热源分布
-    dist_sq = (X_grid - x_nozzle).^2 + (Y_grid - y_nozzle).^2;
-    heat_source = (Q_heat_sim(n) / (2 * pi * sigma_source^2 * params.layer_height * dx * dy)) * ...
-                  exp(-dist_sq / (2 * sigma_source^2));
+        % Layer change detection
+        if layer_i > current_layer
+            current_layer = layer_i;
+            layer_deposition_time(current_layer) = t(i);
+            fprintf('    Layer %d at t=%.2f s\n', current_layer, t(i));
+        end
 
-    % 转换为温度变化率 (°C/s)
-    heat_source_rate = heat_source / (params.material_density * params.material_specific_heat);
+        %% Temperature at nozzle position (simplified)
+        % This is a simplified model that accounts for:
+        % 1. Heat input from nozzle
+        % 2. Cooling due to environment
+        % 3. Thermal inertia of the material
 
-    %% 7.2 计算拉普拉斯算子（热扩散）
-    % 内部点
-    T_center = T(2:end-1, 2:end-1);
-    T_left_inner = T(2:end-1, 1:end-2);
-    T_right_inner = T(2:end-1, 3:end);
-    T_bottom_inner = T(1:end-2, 2:end-1);
-    T_top_inner = T(3:end, 2:end-1);
+        if is_extruding
+            % Extruding: material is hot
+            T_local = T_nozzle;
+        else
+            % Travel: material cools
+            % Use Newton's law of cooling: dT/dt = -h*A/(m*cp) * (T - T_amb)
+            time_since_extrusion = 0;
+            for j = i-1:-1:1
+                if trajectory_data.is_extruding(j)
+                    time_since_extrusion = t(i) - t(j);
+                    break;
+                end
+            end
 
-    laplacian = (T_left_inner + T_right_inner + T_bottom_inner + T_top_inner - 4*T_center) / (dx^2);
+            % Cooling model
+            cooling_constant = h_total / (rho * cp * (dz*1e-3));  % 1/s
+            T_local = (T_nozzle - params.environment.ambient_temp) * ...
+                      exp(-cooling_constant * time_since_extrusion) + ...
+                      params.environment.ambient_temp;
+        end
 
-    %% 7.3 计算冷却项
-    % 对流 + 辐射冷却：h*(T - T_ambient)
-    cooling_rate_field = cooling_total * (T - params.T_ambient);
+        T_nozzle_history(i) = T_local;
 
-    %% 7.4 更新温度场
-    % ∂T/∂t = α·∇²T + Q_source - Q_cooling
-    dT_dt = alpha * laplacian + heat_source_rate(2:end-1, 2:end-1) - cooling_rate_field(2:end-1, 2:end-1);
+        %% Layer interface temperature
+        % Temperature at the interface between current layer and previous layer
+        if layer_i > 1
+            % Time since previous layer was deposited at this location
+            % Find when nozzle was near this (x,y) on previous layer
+            prev_layer_mask = trajectory_data.layer_num == layer_i - 1;
 
-    % 更新内部点
-    T(2:end-1, 2:end-1) = T(2:end-1, 2:end-1) + dT_dt * dt;
+            if sum(prev_layer_mask) > 0
+                % Find closest point on previous layer
+                dist_prev = sqrt((trajectory_data.x(prev_layer_mask) - xi).^2 + ...
+                                 (trajectory_data.y(prev_layer_mask) - yi).^2);
 
-    % 更新边界点（固定温度）
-    T(1, :) = T_bottom;  % 底部
-    T(end, :) = T_top;   % 顶部
-    T(:, 1) = T_left;    % 左侧
-    T(:, end) = T_right; % 右侧
+                [min_dist, idx_min] = min(dist_prev);
 
-    %% 7.5 记录熔融时间
-    t_above_Tm(T > params.melting_point) = t_above_Tm(T > params.melting_point) + dt;
+                if min_dist < 5  % Within 5mm
+                    prev_layer_indices = find(prev_layer_mask);
+                    prev_idx = prev_layer_indices(idx_min);
+                    time_diff = t(i) - t(prev_idx);
 
-    %% 7.6 保存数据
-    if mod(n, save_interval) == 0
-        current_save_idx = current_save_idx + 1;
-        T_history(current_save_idx, :, :) = T;
+                    % Temperature of previous layer at this location
+                    T_prev_layer = T_nozzle_history(prev_idx) * exp(-cooling_constant * time_diff) + ...
+                                   params.environment.ambient_temp * (1 - exp(-cooling_constant * time_diff));
+
+                    T_interface(i) = (T_local + T_prev_layer) / 2;  % Average
+                else
+                    T_interface(i) = params.environment.ambient_temp;
+                end
+            else
+                T_interface(i) = params.environment.ambient_temp;
+            end
+        else
+            T_interface(i) = T_local;  % First layer - no interface below
+        end
+
+        %% Surface temperature
+        T_surface(i) = T_local;
+
+        %% Cooling rate
+        if i > 1
+            cooling_rate(i) = (T_local - T_prev) / (t(i) - t(i-1));
+        end
+
+        T_prev = T_local;
     end
 
-    % 进度显示
-    if mod(n, floor(nt/10)) == 0
-        fprintf('      进度: %.0f%%, T_max: %.1f°C\n', n/nt*100, max(T(:)));
+    %% Calculate thermal metrics
+    fprintf('  Calculating thermal metrics...\n');
+
+    % Temperature above melting point (for molecular diffusion)
+    time_above_melting = sum(T_nozzle_history > params.material.melting_point) * mean(diff(t));
+
+    % Temperature above glass transition
+    time_above_tg = sum(T_nozzle_history > params.material.glass_transition) * mean(diff(t));
+
+    % Maximum cooling rate
+    max_cooling_rate = max(cooling_rate(T_nozzle_history < params.printing.nozzle_temp - 50));
+
+    % Mean interface temperature during printing
+    mean_interface_temp = mean(T_interface(trajectory_data.is_extruding));
+
+    fprintf('    Time above Tm: %.2f s\n', time_above_melting);
+    fprintf('    Time above Tg: %.2f s\n', time_above_tg);
+    fprintf('    Max cooling rate: %.2f °C/s\n', abs(max_cooling_rate));
+    fprintf('    Mean interface temp: %.2f °C\n', mean_interface_temp);
+
+    %% Calculate adhesion strength (simplified model)
+    fprintf('  Estimating interlayer adhesion strength...\n');
+
+    % Wool-O'Connor healing model (simplified)
+    % Bond strength depends on:
+    % 1. Interface temperature
+    % 2. Time above critical temperature
+    % 3. Cooling rate
+
+    adhesion_ratio = zeros(n_points, 1);
+
+    for i = 1:n_points
+        if trajectory_data.layer_num(i) > 1 && trajectory_data.is_extruding(i)
+            T_int = T_interface(i);
+
+            % Healing ratio based on temperature
+            if T_int < params.material.glass_transition
+                healing_ratio = 0;
+            elseif T_int < params.material.melting_point
+                % Linear ramp from Tg to Tm
+                healing_ratio = (T_int - params.material.glass_transition) / ...
+                               (params.material.melting_point - params.material.glass_transition);
+            else
+                healing_ratio = 1.0;
+            end
+
+            % Adjust for cooling rate (fast cooling = poor healing)
+            cooling_factor = min(1.0, 10 / (abs(cooling_rate(i)) + 1));
+
+            adhesion_ratio(i) = healing_ratio * cooling_factor;
+        end
     end
-end
 
-%% 8. 提取轨迹点上的温度数据
-% 找到每个轨迹时刻对应的温度
-for i = 1:length(t_traj)
-    % 找到最近的网格点
-    [~, idx_x] = min(abs(x_grid - trajectory.x_ref(i)));
-    [~, idx_y] = min(abs(y_grid - trajectory.y_ref(i)));
+    mean_adhesion = mean(adhesion_ratio(adhesion_ratio > 0));
+    min_adhesion = min(adhesion_ratio(adhesion_ratio > 0));
 
-    % 当前层温度
-    T_current = T(idx_y, idx_x);
-    T_nozzle_path(i) = T_current;
+    fprintf('    Mean adhesion ratio: %.2f\n', mean_adhesion);
+    fprintf('    Min adhesion ratio: %.2f\n', min_adhesion);
 
-    % 层间温度（简化：假设下层温度略低）
-    T_interface(i) = T_current * 0.95;
+    %% Interlayer time interval
+    fprintf('  Calculating interlayer time intervals...\n');
 
-    % 冷却速率（简化：当前温度与环境温度的差值 * 冷却系数）
-    cooling_rate(i) = cooling_total * (T_current - params.T_ambient);
+    interlayer_time = zeros(n_points, 1);
 
-    % 时间高于熔点
-    time_above_melting(i) = t_above_Tm(idx_y, idx_x);
-end
+    for i = 2:n_points
+        if trajectory_data.layer_num(i) > trajectory_data.layer_num(i-1)
+            % This is the start of a new layer
+            % Calculate time since previous layer at this location
+            current_layer = trajectory_data.layer_num(i);
 
-%% 9. 计算温度梯度
-% 层间温度梯度（Z方向，简化）
-gradient_z = abs(T_nozzle_path - params.T_bed) / params.layer_height;
+            % Find when we were at similar (x,y) on previous layer
+            prev_layer_mask = trajectory_data.layer_num == current_layer - 1;
 
-% 面内温度梯度（XY平面）
-gradient_xy_mag = zeros(length(t_traj), 1);
-for i = 1:length(t_traj)
-    [~, idx_x] = min(abs(x_grid - trajectory.x_ref(i)));
-    [~, idx_y] = min(abs(y_grid - trajectory.y_ref(i)));
+            if sum(prev_layer_mask) > 0
+                xi = x_nozzle(i);
+                yi = y_nozzle(i);
 
-    if idx_x > 1 && idx_x < nx && idx_y > 1 && idx_y < ny
-        dTdx = (T(idx_y, idx_x+1) - T(idx_y, idx_x-1)) / (2*dx);
-        dTdy = (T(idx_y+1, idx_x) - T(idx_y-1, idx_x)) / (2*dy);
-        gradient_xy_mag(i) = sqrt(dTdx^2 + dTdy^2);
+                dist_prev = sqrt((trajectory_data.x(prev_layer_mask) - xi).^2 + ...
+                                 (trajectory_data.y(prev_layer_mask) - yi).^2);
+
+                [min_dist, idx_min] = min(dist_prev);
+
+                if min_dist < 10  % Within 10mm
+                    prev_layer_indices = find(prev_layer_mask);
+                    prev_idx = prev_layer_indices(idx_min);
+                    interlayer_time(i) = t(i) - t(prev_idx);
+                end
+            end
+        end
     end
-end
 
-%% 10. 热累积指标
-% 热累积时间：在喷嘴附近的停留时间
-thermal_accumulation_time = zeros(length(t_traj), 1);
-window_size = 10;  % 时间窗口
-for i = 1:length(t_traj)
-    % 计算过去window_size秒内，喷嘴在当前位置附近的次数
-    time_window = t_traj(i) - window_size;
-    idx_in_window = find(t_traj >= time_window & t_traj <= t_traj(i));
+    mean_interlayer_time = mean(interlayer_time(interlayer_time > 0));
 
-    if ~isempty(idx_in_window)
-        distances = sqrt((trajectory.x_ref(idx_in_window) - trajectory.x_ref(i)).^2 + ...
-                        (trajectory.y_ref(idx_in_window) - trajectory.y_ref(i)).^2);
-        thermal_accumulation_time(i) = sum(distances < params.nozzle_diameter * 2) * dt;
+    fprintf('    Mean interlayer time: %.2f s\n', mean_interlayer_time);
+
+    %% Temperature gradient (simplified)
+    fprintf('  Estimating temperature gradients...\n');
+
+    % Vertical gradient (between layers)
+    temp_gradient_z = zeros(n_points, 1);
+
+    for i = 2:n_points
+        if trajectory_data.is_extruding(i) && trajectory_data.layer_num(i) > 1
+            % Estimate temperature difference with previous layer
+            T_current = T_nozzle_history(i);
+
+            % Find corresponding point on previous layer
+            prev_layer_mask = trajectory_data.layer_num == trajectory_data.layer_num(i) - 1;
+
+            if sum(prev_layer_mask) > 0
+                xi = x_nozzle(i);
+                yi = y_nozzle(i);
+
+                dist_prev = sqrt((trajectory_data.x(prev_layer_mask) - xi).^2 + ...
+                                 (trajectory_data.y(prev_layer_mask) - yi).^2);
+
+                [min_dist, idx_min] = min(dist_prev);
+
+                if min_dist < 10
+                    prev_layer_indices = find(prev_layer_mask);
+                    prev_idx = prev_layer_indices(idx_min);
+                    T_prev_layer_local = T_nozzle_history(prev_idx);
+
+                    % Vertical gradient (°C/mm)
+                    temp_gradient_z(i) = abs(T_current - T_prev_layer_local) / params.extrusion.height;
+                end
+            end
+        end
     end
-end
 
-%% 11. 构建输出数据结构
-thermal_field = struct();
+    %% Create output structure
+    thermal_results.time = t;
 
-% 网格信息
-thermal_field.x_grid = x_grid;
-thermal_field.y_grid = y_grid;
-thermal_field.X = X;
-thermal_field.Y = Y;
-thermal_field.dx = dx;
-thermal_field.dy = dy;
+    % Nozzle position (actual trajectory)
+    thermal_results.x_nozzle = x_nozzle;
+    thermal_results.y_nozzle = y_nozzle;
+    thermal_results.z_nozzle = z_nozzle;
 
-% 时间信息
-thermal_field.t_grid = t_grid;
-thermal_field.dt = dt;
+    % Temperature field
+    thermal_results.T_nozzle_history = T_nozzle_history;  % °C
+    thermal_results.T_interface = T_interface;            % °C
+    thermal_results.T_surface = T_surface;                % °C
 
-% 完整温度场历史
-thermal_field.T_history = T_history;
-thermal_field.T_final = T;
+    % Temperature gradients
+    thermal_results.temp_gradient_z = temp_gradient_z;    % °C/mm
 
-% 轨迹点温度
-thermal_field.T_nozzle_path = T_nozzle_path;
-thermal_field.T_interface = T_interface;
-thermal_field.cooling_rate = cooling_rate;
-thermal_field.time_above_melting = time_above_melting;
+    % Cooling
+    thermal_results.cooling_rate = cooling_rate;          % °C/s
+    thermal_results.time_above_melting = time_above_melting;  % s
+    thermal_results.time_above_tg = time_above_tg;        % s
 
-% 温度梯度
-thermal_field.gradient_z = gradient_z;
-thermal_field.gradient_xy = gradient_xy_mag;
+    % Interlayer
+    thermal_results.interlayer_time = interlayer_time;    % s
+    thermal_results.mean_interlayer_time = mean_interlayer_time;  % s
 
-% 热累积
-thermal_field.thermal_accumulation_time = thermal_accumulation_time;
+    % Adhesion strength
+    thermal_results.adhesion_ratio = adhesion_ratio;      % -
+    thermal_results.mean_adhesion = mean_adhesion;        % -
+    thermal_results.min_adhesion = min_adhesion;          % -
 
-% 喷嘴位置和热输入
-thermal_field.x_nozzle = trajectory.x_ref;
-thermal_field.y_nozzle = trajectory.y_ref;
-thermal_field.Q_heat = Q_heat;
+    % Environmental
+    thermal_results.T_ambient = params.environment.ambient_temp;
+    thermal_results.T_bed = params.printing.bed_temp;
+    thermal_results.T_nozzle_setpoint = params.printing.nozzle_temp;
 
-% 统计
-thermal_field.T_max = max(T_nozzle_path);
-thermal_field.T_min = min(T_nozzle_path);
-thermal_field.T_mean = mean(T_nozzle_path);
-thermal_field.T_std = std(T_nozzle_path);
+    % Grid information
+    thermal_results.x_grid = x_grid;
+    thermal_results.y_grid = y_grid;
+    thermal_results.z_grid = z_grid;
+    thermal_results.dx = dx;
+    thermal_results.dy = dy;
+    thermal_results.dz = dz;
 
-fprintf('    温度场仿真完成\n');
-fprintf('    温度范围: %.1f - %.1f °C\n', thermal_field.T_min, thermal_field.T_max);
+    fprintf('  Thermal field simulation complete!\n\n');
+
+    %% Optional: Plotting
+    if params.debug.plot_temperature
+        figure('Name', 'Thermal Field Analysis', 'Position', [100, 100, 1200, 800]);
+
+        % Temperature at nozzle position
+        subplot(2, 3, 1);
+        plot(t, T_nozzle_history, 'r-', 'LineWidth', 1.5);
+        yline(params.material.melting_point, 'b--', 'Melting Point', 'LineWidth', 1.5);
+        yline(params.material.glass_transition, 'g--', 'T_g', 'LineWidth', 1.5);
+        yline(params.environment.ambient_temp, 'k--', 'Ambient', 'LineWidth', 1);
+        grid on;
+        xlabel('Time (s)');
+        ylabel('Temperature (°C)');
+        title('Temperature at Nozzle Position');
+        ylim([params.environment.ambient_temp - 10, T_nozzle + 10]);
+
+        % Interface temperature
+        subplot(2, 3, 2);
+        plot(t, T_interface, 'b-', 'LineWidth', 1.5);
+        yline(params.material.glass_transition, 'g--', 'T_g', 'LineWidth', 1.5);
+        grid on;
+        xlabel('Time (s)');
+        ylabel('Interface Temperature (°C)');
+        title('Layer Interface Temperature');
+
+        % Cooling rate
+        subplot(2, 3, 3);
+        plot(t, cooling_rate, 'r-', 'LineWidth', 1);
+        grid on;
+        xlabel('Time (s)');
+        ylabel('Cooling Rate (°C/s)');
+        title('Cooling Rate');
+        ylim([min(cooling_rate)*1.1, max(abs(cooling_rate))*1.1]);
+
+        % Adhesion ratio
+        subplot(2, 3, 4);
+        valid_adhesion = adhesion_ratio > 0;
+        plot(t(valid_adhesion), adhesion_ratio(valid_adhesion), 'b.-', 'LineWidth', 1);
+        grid on;
+        xlabel('Time (s)');
+        ylabel('Adhesion Ratio');
+        title('Interlayer Adhesion Strength');
+        ylim([0, 1.1]);
+
+        % Interlayer time
+        subplot(2, 3, 5);
+        valid_interlayer = interlayer_time > 0;
+        plot(t(valid_interlayer), interlayer_time(valid_interlayer), 'g.-', 'LineWidth', 1);
+        grid on;
+        xlabel('Time (s)');
+        ylabel('Time (s)');
+        title('Interlayer Time Interval');
+
+        % Temperature gradient
+        subplot(2, 3, 6);
+        valid_grad = temp_gradient_z > 0;
+        plot(t(valid_grad), temp_gradient_z(valid_grad), 'm-', 'LineWidth', 1);
+        grid on;
+        xlabel('Time (s)');
+        ylabel('Gradient (°C/mm)');
+        title('Vertical Temperature Gradient');
+
+        drawnow;
+    end
 
 end

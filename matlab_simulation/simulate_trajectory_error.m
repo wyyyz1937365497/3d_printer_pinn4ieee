@@ -1,209 +1,337 @@
-function trajectory_error = simulate_trajectory_error(trajectory, params)
-%% 仿真轨迹误差（二阶震荡系统）
-% 物理模型：质量-弹簧-阻尼系统
-% 方程：m*x'' + c*x' + k*x = F(t)
+function results = simulate_trajectory_error(trajectory_data, params)
+% SIMULATE_TRAJECTORY_ERROR - Simulate trajectory error due to inertia and belt elasticity
 %
-% 输入：
-%   trajectory - 参考轨迹数据
-%   params - 仿真参数
-% 输出：
-%   trajectory_error - 轨迹误差数据
+% This function models the printer dynamics as a second-order mass-spring-damper system:
+%   m·x'' + c·x' + k·x = F(t)
+%
+% Where:
+%   m - effective mass of moving system
+%   c - damping coefficient (belt and friction)
+%   k - stiffness of transmission (belt elasticity)
+%   F(t) - forcing function (inertial forces from acceleration)
+%
+% The system responds to the reference trajectory with:
+% 1. Lag due to acceleration (inertia)
+% 2. Oscillation due to underdamped response
+% 3. Steady-state error (if any)
+%
+% Inputs:
+%   trajectory_data - Structure from parse_gcode.m
+%   params          - Physics parameters from physics_parameters.m
+%
+% Output:
+%   results         - Structure containing actual trajectory and error vectors
+%
+% Reference: Control theory for second-order systems
 
-fprintf('    求解二阶系统响应...\n');
+    fprintf('Simulating trajectory error (second-order system dynamics)...\n');
 
-%% 1. 提取参考轨迹
-t = trajectory.time;
-x_ref = trajectory.x_ref;
-y_ref = trajectory.y_ref;
-ax_ref = trajectory.ax_ref;
-ay_ref = trajectory.ay_ref;
+    %% Extract time series data
+    t = trajectory_data.time;
+    n_points = length(t);
 
-n_points = length(t);
-dt = t(2) - t(1);
+    % Reference trajectory (from G-code)
+    x_ref = trajectory_data.x;
+    y_ref = trajectory_data.y;
+    z_ref = trajectory_data.z;
 
-%% 2. 二阶系统参数（X轴和Y轴）
-% X轴参数
-m_x = params.mass_x;
-k_x = params.stiffness_x;
-c_x = params.damping_x;
+    % Reference acceleration (forcing function)
+    ax_ref = trajectory_data.ax;
+    ay_ref = trajectory_data.ay;
 
-% Y轴参数
-m_y = params.mass_y;
-k_y = params.stiffness_y;
-c_y = params.damping_y;
+    %% Extract system parameters
+    % X-axis dynamics
+    mx = params.dynamics.x.mass;
+    kx = params.dynamics.x.stiffness;
+    cx = params.dynamics.x.damping;
+    wn_x = params.dynamics.x.natural_freq;
+    zeta_x = params.dynamics.x.damping_ratio;
 
-% 计算系统特性
-omega_n_x = sqrt(k_x / m_x);  % 固有频率
-zeta_x = c_x / (2 * sqrt(m_x * k_x));  % 阻尼比
+    % Y-axis dynamics
+    my = params.dynamics.y.mass;
+    ky = params.dynamics.y.stiffness;
+    cy = params.dynamics.y.damping;
+    wn_y = params.dynamics.y.natural_freq;
+    zeta_y = params.dynamics.y.damping_ratio;
 
-omega_n_y = sqrt(k_y / m_y);
-zeta_y = c_y / (2 * sqrt(m_y * k_y));
+    fprintf('  X-axis: ωn = %.2f rad/s, ζ = %.4f\n', wn_x, zeta_x);
+    fprintf('  Y-axis: ωn = %.2f rad/s, ζ = %.4f\n', wn_y, zeta_y);
 
-%% 3. 状态空间表示
-% 状态向量：[x; vx] 和 [y; vy]
-% X轴：dx/dt = [vx; (-k/m)*x + (-c/m)*vx + (1/m)*F]
-% Y轴：dy/dt = [vy; (-k/m)*y + (-c/m)*vy + (1/m)*F]
+    %% Simulation time step (use uniform grid)
+    dt = params.simulation.time_step;
 
-% X轴状态空间矩阵
-A_x = [0, 1;
-       -k_x/m_x, -c_x/m_x];
-B_x = [0;
-       1/m_x];
+    % Create uniform time grid
+    t_uniform = linspace(t(1), t(end), ceil((t(end) - t(1)) / dt) + 1);
+    dt_actual = t_uniform(2) - t_uniform(1);
+    n_uniform = length(t_uniform);
 
-% Y轴状态空间矩阵
-A_y = [0, 1;
-       -k_y/m_y, -c_y/m_y];
-B_y = [0;
-       1/m_y];
+    % Interpolate reference to uniform grid
+    x_ref_uniform = interp1(t, x_ref, t_uniform, 'linear', 'extrap');
+    y_ref_uniform = interp1(t, y_ref, t_uniform, 'linear', 'extrap');
+    ax_ref_uniform = interp1(t, ax_ref, t_uniform, 'linear', 'extrap');
+    ay_ref_uniform = interp1(t, ay_ref, t_uniform, 'linear', 'extrap');
 
-%% 4. 计算惯性力输入
-% 惯性力 F_inertia = m * a_ref
-F_inertia_x = m_x * ax_ref;
-F_inertia_y = m_y * ay_ref;
+    %% Simulate X-axis dynamics (second-order system)
+    fprintf('  Simulating X-axis dynamics...\n');
 
-%% 5. 时间响应求解（欧拉法）
-% 初始状态
-state_x = [x_ref(1); 0];  % [位置; 速度]
-state_y = [y_ref(1); 0];
+    % State space: [x; v] where x is position error, v is velocity error
+    % For a second-order system driven by acceleration:
+    % x' = v
+    % v' = -(c/m)*v - (k/m)*x - a_ref
+    %
+    % Note: The negative sign on a_ref because the error is defined as:
+    % error = actual - reference
+    % And the actual position responds to the inertial force F = -m*a_ref
 
-% 预分配数组
-x_act = zeros(n_points, 1);
-y_act = zeros(n_points, 1);
-vx_act = zeros(n_points, 1);
-vy_act = zeros(n_points, 1);
-ax_act = zeros(n_points, 1);
-ay_act = zeros(n_points, 1);
+    % Initialize state
+    x_state = zeros(2, n_uniform);
+    x_state(:, 1) = [0; 0];  % Start with zero error
 
-% 动力学量存储
-F_inertia_x_out = zeros(n_points, 1);
-F_inertia_y_out = zeros(n_points, 1);
-delta_L_x = zeros(n_points, 1);
-delta_L_y = zeros(n_points, 1);
-F_elastic_x = zeros(n_points, 1);
-F_elastic_y = zeros(n_points, 1);
-F_damping_x = zeros(n_points, 1);
-F_damping_y = zeros(n_points, 1);
+    % System matrices
+    Ax = [0, 1;
+          -kx/mx, -cx/mx];
+    Bx = [0; -1];  % Input is acceleration
 
-% 时间积分
-for i = 1:n_points
-    % 保存当前状态
-    x_act(i) = state_x(1);
-    y_act(i) = state_y(1);
-    vx_act(i) = state_x(2);
-    vy_act(i) = state_y(2);
-
-    % 计算实际加速度（从状态方程）
-    ax_act(i) = A_x(2,:) * state_x + B_x * F_inertia_x(i);
-    ay_act(i) = A_y(2,:) * state_y + B_y * F_inertia_y(i);
-
-    % 计算动力学量
-    F_inertia_x_out(i) = F_inertia_x(i);
-    F_inertia_y_out(i) = F_inertia_y(i);
-
-    % 皮带弹性伸长 delta_L = F / k
-    delta_L_x(i) = F_inertia_x(i) / k_x;
-    delta_L_y(i) = F_inertia_y(i) / k_y;
-
-    % 弹性力 F_elastic = k * delta_L
-    F_elastic_x(i) = k_x * (x_ref(i) - x_act(i));
-    F_elastic_y(i) = k_y * (y_ref(i) - y_act(i));
-
-    % 阻尼力 F_damping = c * v
-    F_damping_x(i) = c_x * vx_act(i);
-    F_damping_y(i) = c_y * vy_act(i);
-
-    % 状态更新（欧拉法）
-    if i < n_points
-        % X轴
-        dxdt_x = A_x * state_x + B_x * F_inertia_x(i);
-        state_x = state_x + dxdt_x * dt;
-
-        % Y轴
-        dxdt_y = A_y * state_y + B_y * F_inertia_y(i);
-        state_y = state_y + dxdt_y * dt;
+    % Time integration (Euler method)
+    for i = 2:n_uniform
+        % State update: x(k+1) = x(k) + dt * (Ax*x(k) + Bx*u(k))
+        dx = Ax * x_state(:, i-1) + Bx * ax_ref_uniform(i-1);
+        x_state(:, i) = x_state(:, i-1) + dt_actual * dx;
     end
-end
 
-%% 6. 计算误差
-epsilon_x = x_act - x_ref;
-epsilon_y = y_act - y_ref;
-epsilon_r = sqrt(epsilon_x.^2 + epsilon_y.^2);  % 位置误差幅值
+    % Extract actual position
+    x_act_uniform = x_ref_uniform + x_state(1, :);
+    vx_act_uniform = gradient(x_act_uniform, dt_actual);
 
-% 速度误差
-epsilon_vx = vx_act - trajectory.vx_ref;
-epsilon_vy = vy_act - trajectory.vy_ref;
+    %% Simulate Y-axis dynamics
+    fprintf('  Simulating Y-axis dynamics...\n');
 
-%% 7. 计算系统性能指标
-% 上升时间（近似）
-[~, idx_10] = max(epsilon_r > 0.1 * max(epsilon_r));
-[~, idx_90] = max(epsilon_r > 0.9 * max(epsilon_r));
-if idx_90 > idx_10
-    rise_time = t(idx_90) - t(idx_10);
-else
-    rise_time = 0;
-end
+    y_state = zeros(2, n_uniform);
+    y_state(:, 1) = [0; 0];
 
-% 超调量
-steady_state_error = mean(epsilon_r(round(end/2):end));
-max_error = max(epsilon_r);
-if steady_state_error > 0
-    overshoot = (max_error - steady_state_error) / steady_state_error * 100;
-else
-    overshoot = 0;
-end
+    Ay = [0, 1;
+          -ky/my, -cy/my];
+    By = [0; -1];
 
-%% 8. 构建输出数据结构
-trajectory_error = struct();
+    for i = 2:n_uniform
+        dy = Ay * y_state(:, i-1) + By * ay_ref_uniform(i-1);
+        y_state(:, i) = y_state(:, i-1) + dt_actual * dy;
+    end
 
-% 系统参数
-trajectory_error.omega_n_x = omega_n_x;
-trajectory_error.omega_n_y = omega_n_y;
-trajectory_error.zeta_x = zeta_x;
-trajectory_error.zeta_y = zeta_y;
-trajectory_error.rise_time = rise_time;
-trajectory_error.overshoot = overshoot;
+    y_act_uniform = y_ref_uniform + y_state(1, :);
+    vy_act_uniform = gradient(y_act_uniform, dt_actual);
 
-% 参考轨迹
-trajectory_error.x_ref = x_ref;
-trajectory_error.y_ref = y_ref;
-trajectory_error.vx_ref = trajectory.vx_ref;
-trajectory_error.vy_ref = trajectory.vy_ref;
-trajectory_error.ax_ref = ax_ref;
-trajectory_error.ay_ref = ay_ref;
+    %% Calculate error vectors (as vectors, not just magnitudes)
+    fprintf('  Calculating error vectors...\n');
 
-% 实际轨迹
-trajectory_error.x_act = x_act;
-trajectory_error.y_act = y_act;
-trajectory_error.vx_act = vx_act;
-trajectory_error.vy_act = vy_act;
-trajectory_error.ax_act = ax_act;
-trajectory_error.ay_act = ay_act;
+    % Position error vector (components)
+    error_x_uniform = x_state(1, :);
+    error_y_uniform = y_state(1, :);
 
-% 误差
-trajectory_error.epsilon_x = epsilon_x;
-trajectory_error.epsilon_y = epsilon_y;
-trajectory_error.position_error_magnitude = epsilon_r;
-trajectory_error.epsilon_vx = epsilon_vx;
-trajectory_error.epsilon_vy = epsilon_vy;
+    % Position error magnitude
+    error_magnitude_uniform = sqrt(error_x_uniform.^2 + error_y_uniform.^2);
 
-% 动力学量
-trajectory_error.F_inertia_x = F_inertia_x_out;
-trajectory_error.F_inertia_y = F_inertia_y_out;
-trajectory_error.delta_L_x = delta_L_x;
-trajectory_error.delta_L_y = delta_L_y;
-trajectory_error.F_elastic_x = F_elastic_x;
-trajectory_error.F_elastic_y = F_elastic_y;
-trajectory_error.F_damping_x = F_damping_x;
-trajectory_error.F_damping_y = F_damping_y;
+    % Error direction angle
+    error_direction = atan2(error_y_uniform, error_x_uniform);
 
-% 统计
-trajectory_error.max_error = max(epsilon_r);
-trajectory_error.rms_error = sqrt(mean(epsilon_r.^2));
-trajectory_error.steady_state_error = steady_state_error;
+    %% Dynamic forces
+    fprintf('  Calculating dynamic forces...\n');
 
-fprintf('    轨迹误差仿真完成\n');
-fprintf('    最大误差: %.4f mm, RMS误差: %.4f mm\n', ...
-    trajectory_error.max_error, trajectory_error.rms_error);
-fprintf('    系统特性: ω_n_x=%.2f rad/s, ζ_x=%.3f\n', omega_n_x, zeta_x);
+    % Inertial forces: F = m * a_ref
+    F_inertia_x = mx * ax_ref_uniform;
+    F_inertia_y = my * ay_ref_uniform;
+
+    % Elastic forces (belt stretch): F = k * error
+    F_elastic_x = kx * error_x_uniform;
+    F_elastic_y = ky * error_y_uniform;
+
+    % Damping forces: F = c * v_error
+    v_error_x = x_state(2, :);
+    v_error_y = y_state(2, :);
+    F_damping_x = cx * v_error_x;
+    F_damping_y = cy * v_error_y;
+
+    %% Interpolate back to original time grid
+    x_act = interp1(t_uniform, x_act_uniform, t, 'linear', 'extrap');
+    y_act = interp1(t_uniform, y_act_uniform, t, 'linear', 'extrap');
+    vx_act = interp1(t_uniform, vx_act_uniform, t, 'linear', 'extrap');
+    vy_act = interp1(t_uniform, vy_act_uniform, t, 'linear', 'extrap');
+
+    error_x = interp1(t_uniform, error_x_uniform, t, 'linear', 'extrap');
+    error_y = interp1(t_uniform, error_y_uniform, t, 'linear', 'extrap');
+    error_magnitude = interp1(t_uniform, error_magnitude_uniform, t, 'linear', 'extrap');
+    error_dir = interp1(t_uniform, error_direction, t, 'linear', 'extrap');
+
+    F_inertia_x = interp1(t_uniform, F_inertia_x, t, 'linear', 'extrap');
+    F_inertia_y = interp1(t_uniform, F_inertia_y, t, 'linear', 'extrap');
+    F_elastic_x = interp1(t_uniform, F_elastic_x, t, 'linear', 'extrap');
+    F_elastic_y = interp1(t_uniform, F_elastic_y, t, 'linear', 'extrap');
+
+    %% Statistical analysis
+    fprintf('  Statistical analysis of errors:\n');
+    fprintf('    Max X error: %.3f mm\n', max(abs(error_x)));
+    fprintf('    Max Y error: %.3f mm\n', max(abs(error_y)));
+    fprintf('    Max error magnitude: %.3f mm\n', max(error_magnitude));
+    fprintf('    RMS error magnitude: %.3f mm\n', rms(error_magnitude));
+    fprintf('    Mean error magnitude: %.3f mm\n', mean(error_magnitude));
+
+    % Error at corners
+    corner_mask = trajectory_data.is_corner;
+    if sum(corner_mask) > 0
+        corner_errors = error_magnitude(corner_mask);
+        fprintf('    Max corner error: %.3f mm\n', max(corner_errors));
+        fprintf('    Mean corner error: %.3f mm\n', mean(corner_errors));
+    end
+
+    %% Frequency analysis (to detect resonance excitation)
+    fprintf('  Performing frequency analysis...\n');
+
+    % Power spectral density of error
+    [psd_x, freq_x] = pwelch(error_x, [], [], [], 1/dt_actual);
+    [psd_y, freq_y] = pwelch(error_y, [], [], [], 1/dt_actual);
+
+    % Find dominant frequencies
+    [max_psd_x, idx_x] = max(psd_x);
+    [max_psd_y, idx_y] = max(psd_y);
+
+    dominant_freq_x = freq_x(idx_x);
+    dominant_freq_y = freq_y(idx_y);
+
+    fprintf('    Dominant error frequency (X): %.2f Hz\n', dominant_freq_x);
+    fprintf('    Dominant error frequency (Y): %.2f Hz\n', dominant_freq_y);
+    fprintf('    X-axis natural frequency: %.2f Hz\n', wn_x / (2*pi));
+    fprintf('    Y-axis natural frequency: %.2f Hz\n', wn_y / (2*pi));
+
+    %% Create output structure
+    results.time = t;
+
+    % Reference trajectory
+    results.x_ref = x_ref;
+    results.y_ref = y_ref;
+    results.z_ref = z_ref;
+
+    % Actual trajectory (with dynamics)
+    results.x_act = x_act;
+    results.y_act = y_act;
+    results.z_act = z_ref;  % Z-axis not modeled in dynamics
+
+    % Actual velocity
+    results.vx_act = vx_act;
+    results.vy_act = vy_act;
+    results.vz_act = zeros(size(vy_act));
+
+    % Actual acceleration (numerical)
+    results.ax_act = gradient(vx_act, dt);
+    results.ay_act = gradient(vy_act, dt);
+    results.az_act = zeros(size(vy_act));
+
+    % ERROR VECTORS (not just magnitudes!)
+    results.error_x = error_x;           % mm - X component of error vector
+    results.error_y = error_y;           % mm - Y component of error vector
+    results.error_magnitude = error_magnitude;  % mm - |error vector|
+    results.error_direction = error_dir; % rad - Direction of error vector
+
+    % Dynamic forces
+    results.F_inertia_x = F_inertia_x;   % N
+    results.F_inertia_y = F_inertia_y;   % N
+    results.F_elastic_x = F_elastic_x;   % N
+    results.F_elastic_y = F_elastic_y;   % N
+    results.F_damping_x = F_damping_x;   % N (on uniform grid)
+    results.F_damping_y = F_damping_y;   % N (on uniform grid)
+
+    % Belt stretch (displacement)
+    results.belt_stretch_x = error_x;    % mm
+    results.belt_stretch_y = error_y;    % mm
+
+    % System response metrics
+    results.settling_time_x = params.dynamics.x.settling_time;
+    results.settling_time_y = params.dynamics.y.settling_time;
+    results.overshoot_x = exp(-pi * zeta_x / sqrt(1 - zeta_x^2)) * 100;  % %
+    results.overshoot_y = exp(-pi * zeta_y / sqrt(1 - zeta_y^2)) * 100;  % %
+
+    % Frequency analysis
+    results.frequency_x = freq_x;
+    results.frequency_y = freq_y;
+    results.psd_x = psd_x;
+    results.psd_y = psd_y;
+    results.dominant_freq_x = dominant_freq_x;  % Hz
+    results.dominant_freq_y = dominant_freq_y;  % Hz
+
+    % Corner-specific errors
+    results.corner_mask = corner_mask;
+    results.corner_errors = error_magnitude(corner_mask);
+    results.max_corner_error = max(error_magnitude(corner_mask));
+    results.mean_corner_error = mean(error_magnitude(corner_mask));
+
+    fprintf('  Trajectory error simulation complete!\n\n');
+
+    %% Optional: Plotting (if debug mode)
+    if params.debug.plot_trajectory
+        figure('Name', 'Trajectory Error Analysis', 'Position', [100, 100, 1200, 800]);
+
+        % Reference vs Actual trajectory (top view)
+        subplot(2, 3, 1);
+        plot(x_ref, y_ref, 'b--', 'LineWidth', 1.5); hold on;
+        plot(x_act, y_act, 'r-', 'LineWidth', 1);
+        plot(x_ref(corner_mask), y_ref(corner_mask), 'ko', 'MarkerSize', 6, 'MarkerFaceColor', 'y');
+        axis equal;
+        grid on;
+        xlabel('X (mm)');
+        ylabel('Y (mm)');
+        title('Reference vs Actual Trajectory');
+        legend('Reference', 'Actual', 'Corners', 'Location', 'best');
+
+        % Error magnitude over time
+        subplot(2, 3, 2);
+        plot(t, error_magnitude, 'r-', 'LineWidth', 1);
+        grid on;
+        xlabel('Time (s)');
+        ylabel('Error Magnitude (mm)');
+        title('Position Error Magnitude');
+
+        % Error components (vector visualization)
+        subplot(2, 3, 3);
+        quiver(x_ref(corner_mask), y_ref(corner_mask), ...
+                error_x(corner_mask), error_y(corner_mask), ...
+                'AutoScale', 'on', 'MaxHeadSize', 0.5);
+        hold on;
+        plot(x_ref, y_ref, 'k--', 'LineWidth', 0.5);
+        axis equal;
+        grid on;
+        xlabel('X (mm)');
+        ylabel('Y (mm)');
+        title('Error Vectors at Corners');
+
+        % X-axis error
+        subplot(2, 3, 4);
+        plot(t, error_x, 'b-', 'LineWidth', 1);
+        grid on;
+        xlabel('Time (s)');
+        ylabel('X Error (mm)');
+        title('X-Axis Position Error');
+
+        % Y-axis error
+        subplot(2, 3, 5);
+        plot(t, error_y, 'r-', 'LineWidth', 1);
+        grid on;
+        xlabel('Time (s)');
+        ylabel('Y Error (mm)');
+        title('Y-Axis Position Error');
+
+        % Power spectral density
+        subplot(2, 3, 6);
+        semilogy(freq_x, psd_x, 'b-', 'LineWidth', 1.5); hold on;
+        semilogy(freq_y, psd_y, 'r-', 'LineWidth', 1.5);
+        xline(wn_x / (2*pi), 'b--', 'X \omega_n', 'LineWidth', 1.5);
+        xline(wn_y / (2*pi), 'r--', 'Y \omega_n', 'LineWidth', 1.5);
+        grid on;
+        xlabel('Frequency (Hz)');
+        ylabel('PSD (mm²/Hz)');
+        title('Error Power Spectral Density');
+        legend('X Error', 'Y Error', 'Location', 'best');
+        xlim([0, 100]);
+
+        drawnow;
+    end
 
 end
