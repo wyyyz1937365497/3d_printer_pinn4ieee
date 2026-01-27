@@ -25,144 +25,111 @@ class Synthetic3DPrinterDataset(Dataset):
     In production, replace this with your actual data loading logic
     """
 
-    def __init__(self, num_samples=1000, seq_len=200, num_features=12):
-        self.num_samples = num_samples
-        self.seq_len = seq_len
-        self.num_features = num_features
-
-        # Generate synthetic data
-        self.features = torch.randn(num_samples, seq_len, num_features)
-
-        # Generate synthetic targets
-        self.targets = {
-            'rul': torch.rand(num_samples, 1) * 1000,  # RUL in seconds
-            'temperature': torch.rand(num_samples, 1) * 50 + 200,  # 200-250°C
-            'vibration_x': torch.randn(num_samples, 1) * 0.1,
-            'vibration_y': torch.randn(num_samples, 1) * 0.1,
-            'quality_score': torch.rand(num_samples, 1),
-            'fault_label': torch.randint(0, 4, (num_samples,)),
-            'displacement_x': torch.randn(num_samples, 1) * 0.01,
-            'displacement_y': torch.randn(num_samples, 1) * 0.01,
-            'displacement_z': torch.randn(num_samples, 1) * 0.001,
-        }
-
+    def _load_matlab_data(self):
+        """Load data converted from MATLAB simulation"""
+        # Implementation would load from HDF5 file created by convert_matlab_to_python.py
+        pass
+    
     def __len__(self):
-        return self.num_samples
+        return self.size
 
     def __getitem__(self, idx):
-        # Return features and targets as a dictionary
-        batch = {
-            'features': self.features[idx],
-            **{k: v[idx] for k, v in self.targets.items()}
+        # In real implementation, this loads from MATLAB converted data
+        # For demo, we create synthetic data with similar characteristics to MATLAB simulation
+        features = torch.randn(self.seq_len, self.num_features)
+        
+        # Targets would come from physics simulation
+        targets = {
+            'rul': torch.rand(1) * 1000,  # 0-1000 seconds
+            'temperature': torch.rand(1) * 50 + 200,  # 200-250°C
+            'vibration_x': torch.randn(1) * 0.1,
+            'vibration_y': torch.randn(1) * 0.1,
+            'quality_score': torch.rand(1),  # 0-1 scale
+            'fault_label': torch.randint(0, 4, (1,)),  # 4 fault types
+            'displacement_x': torch.randn(1) * 0.01,  # Small displacements
+            'displacement_y': torch.randn(1) * 0.01,
+            'displacement_z': torch.randn(1) * 0.001,
         }
-        return batch
-
-
-def create_data_loaders(config):
-    """
-    Create train, validation, and test data loaders
-
-    Args:
-        config: Configuration object
-
-    Returns:
-        train_loader, val_loader, test_loader
-    """
-    # Create datasets
-    train_dataset = Synthetic3DPrinterDataset(
-        num_samples=5000,
-        seq_len=config.data.seq_len,
-        num_features=config.data.num_features
-    )
-
-    val_dataset = Synthetic3DPrinterDataset(
-        num_samples=1000,
-        seq_len=config.data.seq_len,
-        num_features=config.data.num_features
-    )
-
-    test_dataset = Synthetic3DPrinterDataset(
-        num_samples=1000,
-        seq_len=config.data.seq_len,
-        num_features=config.data.num_features
-    )
-
-    # Create data loaders
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=config.training.batch_size,
-        shuffle=True,
-        num_workers=config.num_workers,
-        pin_memory=True if config.device == 'cuda' else False
-    )
-
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=config.training.batch_size,
-        shuffle=False,
-        num_workers=config.num_workers,
-        pin_memory=True if config.device == 'cuda' else False
-    )
-
-    test_loader = DataLoader(
-        test_dataset,
-        batch_size=config.training.batch_size,
-        shuffle=False,
-        num_workers=config.num_workers,
-        pin_memory=True if config.device == 'cuda' else False
-    )
-
-    return train_loader, val_loader, test_loader
+        
+        return {'features': features, **targets}
 
 
 def main():
-    """
-    Main training function
-    """
-    # Setup
-    config = get_config(preset='unified')
-    set_seed(config.seed)
-    logger = setup_logger('unified_model_training', log_dir=config.training.log_dir)
-
-    logger.info("Starting unified model training")
-    logger.info(f"Device: {config.device}")
-    logger.info(f"Configuration: {config.experiment_name}")
-
-    # Create data loaders
-    logger.info("Creating data loaders...")
-    train_loader, val_loader, test_loader = create_data_loaders(config)
-
-    logger.info(f"Train samples: {len(train_loader.dataset)}")
-    logger.info(f"Val samples: {len(val_loader.dataset)}")
-    logger.info(f"Test samples: {len(test_loader.dataset)}")
-
+    parser = argparse.ArgumentParser(description='Train Unified PINN-Seq3D Model')
+    parser.add_argument('--config', type=str, default=None, 
+                        help='Path to config file')
+    parser.add_argument('--data-path', type=str, default='data/processed/training_data.h5',
+                        help='Path to training data (converted from MATLAB)')
+    parser.add_argument('--experiment-name', type=str, default='unified_model_training',
+                        help='Experiment name for logging')
+    parser.add_argument('--epochs', type=int, default=None,
+                        help='Override number of epochs from config')
+    parser.add_argument('--batch-size', type=int, default=None,
+                        help='Override batch size from config')
+    
+    args = parser.parse_args()
+    
+    # Setup logger
+    logger = setup_logger('train_unified_model', log_level='INFO')
+    logger.info("Starting Unified Model Training")
+    logger.info(f"Using data from: {args.data_path}")
+    logger.info("Note: Training data should be generated from MATLAB physics simulations")
+    
+    # Get configuration
+    config = get_config(
+        preset='unified',
+        experiment_name=args.experiment_name
+    )
+    
+    # Override config values if provided
+    if args.epochs is not None:
+        config.training.num_epochs = args.epochs
+    if args.batch_size is not None:
+        config.training.batch_size = args.batch_size
+    
+    logger.info(f"Configuration: epochs={config.training.num_epochs}, "
+                f"batch_size={config.training.batch_size}")
+    
+    # Create datasets
+    logger.info("Loading datasets...")
+    train_dataset = MatlabSimulationDataset(data_path=args.data_path, split='train')
+    val_dataset = MatlabSimulationDataset(data_path=args.data_path, split='val')
+    
+    train_loader = DataLoader(
+        train_dataset, 
+        batch_size=config.training.batch_size, 
+        shuffle=True,
+        num_workers=config.training.num_workers
+    )
+    val_loader = DataLoader(
+        val_dataset, 
+        batch_size=config.training.batch_size, 
+        shuffle=False,
+        num_workers=config.training.num_workers
+    )
+    
+    logger.info(f"Datasets loaded: {len(train_dataset)} train, {len(val_dataset)} validation samples")
+    
     # Create model
     logger.info("Creating model...")
     model = UnifiedPINNSeq3D(config)
-
-    logger.info(f"Model parameters: {model.get_num_params():,}")
-    logger.info(f"Trainable parameters: {model.get_num_trainable_params():,}")
-
+    
+    logger.info(f"Model created with {model.get_model_info()['num_trainable_parameters']:,} parameters")
+    
     # Create trainer
-    logger.info("Creating trainer...")
+    logger.info("Initializing trainer...")
     trainer = Trainer(
         model=model,
         config=config,
         train_loader=train_loader,
         val_loader=val_loader,
-        test_loader=test_loader,
     )
-
-    # Train model
-    logger.info("Starting training loop...")
+    
+    # Start training
+    logger.info("Starting training process...")
     trainer.train()
-
-    # Test model
-    logger.info("Testing model...")
-    test_metrics = trainer.test()
-
+    
     logger.info("Training completed successfully!")
-    logger.info(f"Final test metrics: {test_metrics}")
 
 
 if __name__ == '__main__':

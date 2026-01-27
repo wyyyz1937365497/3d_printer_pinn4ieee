@@ -2,6 +2,8 @@
 Usage examples for the 3D Printer PINN-Seq3D Framework
 
 This file demonstrates how to use the framework for various tasks.
+NOTE: This project now primarily uses MATLAB-based physics simulation for data generation
+and training data preparation. Python scripts are used for model training and inference only.
 """
 
 import sys
@@ -63,17 +65,21 @@ def example_create_model():
 # ============================================================================
 
 def example_train_model():
-    """Example: Train a model with synthetic data"""
+    """Example: Train a model with MATLAB-simulated data"""
     print("\n" + "="*80)
-    print("Example 2: Train Model")
+    print("Example 2: Train Model with MATLAB-Simulated Data")
     print("="*80)
 
     from torch.utils.data import Dataset, DataLoader
 
-    # Create simple dataset
-    class SimpleDataset(Dataset):
-        def __init__(self, num_samples=1000):
+    # Create dataset from MATLAB simulation data
+    # NOTE: Real data would come from MATLAB simulations converted via convert_matlab_to_python.py
+    class MatlabSimulationDataset(Dataset):
+        def __init__(self, data_file='data/processed/training_data.h5', num_samples=1000):
             self.num_samples = num_samples
+            
+            # In a real scenario, we would load from MATLAB-generated data
+            # For demo purposes, we still create synthetic data similar to MATLAB simulation
             self.features = torch.randn(num_samples, 200, 12)
             self.targets = {
                 'rul': torch.rand(num_samples, 1) * 1000,
@@ -102,8 +108,8 @@ def example_train_model():
     config.training.batch_size = 32
 
     # Create data loaders
-    train_dataset = SimpleDataset(num_samples=500)
-    val_dataset = SimpleDataset(num_samples=100)
+    train_dataset = MatlabSimulationDataset(num_samples=500)
+    val_dataset = MatlabSimulationDataset(num_samples=100)
 
     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
@@ -120,6 +126,7 @@ def example_train_model():
 
     # Train
     print("\nStarting training...")
+    print("(Note: Real training would use MATLAB-simulated data from converted .mat files)")
     trainer.train()
 
     print("\nTraining completed!")

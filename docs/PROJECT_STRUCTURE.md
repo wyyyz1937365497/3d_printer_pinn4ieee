@@ -29,9 +29,7 @@
 ├── data/                        # 数据目录
 │   ├── raw/                    # 原始数据
 │   ├── processed/              # 预处理后的数据
-│   └── scripts/                # 数据生成脚本
-│       ├── generate_physics_data.py
-│       └── generate_trajectory_data.py
+│   └── simulation/             # 仿真数据
 │
 ├── models/                      # 模型定义
 │   ├── __init__.py
@@ -77,6 +75,16 @@
 │   ├── train_quality_model.py # 训练质量预测模型
 │   ├── train_trajectory_model.py # 训练轨迹校正模型
 │   └── train_unified_model.py # 训练统一模型
+│
+├── matlab_simulation/          # MATLAB物理仿真
+│   ├── physics_parameters.m    # 物理参数配置
+│   ├── parse_gcode.m           # G-code解析器
+│   ├── simulate_trajectory_error.m # 轨迹误差仿真
+│   ├── simulate_thermal_field.m # 温度场仿真
+│   ├── run_full_simulation.m   # 主仿真脚本
+│   ├── convert_matlab_to_python.py # MATLAB→Python转换器
+│   ├── README.md               # 文档
+│   └── IMPROVED_PARSER_GUIDE.md # 改进解析器指南
 │
 └── checkpoints/                 # 模型检查点
     ├── quality_predictor/
@@ -221,10 +229,13 @@ total_loss = λ_quality * L_quality +
 pip install -r requirements.txt
 ```
 
-### 2. 数据准备
+### 2. 数据准备（使用MATLAB仿真）
 ```bash
-python data/scripts/generate_physics_data.py
-python data/scripts/generate_trajectory_data.py
+# 在MATLAB中运行完整仿真
+% run_full_simulation.m
+
+# 转换为Python训练数据
+python matlab_simulation/convert_matlab_to_python.py <simulation_file>.mat training -o training_data.h5
 ```
 
 ### 3. 训练模型
@@ -274,7 +285,7 @@ trajectory_correction = results['trajectory']
 
 如果本项目对你有帮助，请引用：
 
-```bibtex
+``bibtex
 @misc{pinn_seq3d_2024,
   title={PINN-Seq3D: A Unified Framework for 3D Printing Quality Prediction and Trajectory Optimization},
   author={Your Name},
