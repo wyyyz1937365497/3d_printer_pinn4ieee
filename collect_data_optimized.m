@@ -134,6 +134,8 @@ for idx = 1:n_param_combos
     try
         % Load and modify physics parameters
         params = physics_parameters();
+        params.debug.verbose = false;  % 关闭图表（批量生成时）
+        % params.debug.verbose = true;  % 开启图表（调试时使用）
         params.motion.max_accel = accel;
         params.motion.max_velocity = velocity;
 
@@ -170,7 +172,13 @@ for idx = 1:n_param_combos
 
     catch ME
         fprintf(' 错误：%s\n', ME.message);
-        continue;
+        fprintf('错误位置：%s\n', ME.stack(1).name);
+        fprintf('错误行号：%d\n', ME.stack(1).line);
+        fprintf('\n');
+        fprintf('============================================================\n');
+        fprintf('发生错误，终止执行！\n');
+        fprintf('============================================================\n');
+        rethrow(ME);
     end
 end
 
@@ -246,6 +254,13 @@ for layer_idx = 1:length(validation_layers)
 
         catch ME
             fprintf(' 错误：%s\n', ME.message);
+            fprintf('错误位置：%s\n', ME.stack(1).name);
+            fprintf('错误行号：%d\n', ME.stack(1).line);
+            fprintf('\n');
+            fprintf('============================================================\n');
+            fprintf('发生错误，终止执行！\n');
+            fprintf('============================================================\n');
+            rethrow(ME);
         end
     end
 end

@@ -54,6 +54,11 @@ function simulation_data = run_full_simulation_gpu(gcode_file, output_file, pars
 
     %% Step 0: Setup GPU
     fprintf('STEP 0: Setting up GPU acceleration...\n');
+
+    % Ensure gpu_utils is in path
+    script_dir = fileparts(mfilename('fullpath'));
+    addpath(script_dir);
+
     gpu_info = setup_gpu(gpu_id);
     fprintf('\n');
 

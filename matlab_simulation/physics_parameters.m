@@ -271,7 +271,7 @@ params.gcode.extrusion_threshold = 0.01;     % mm - Minimum E change to be extru
 params.debug.plot_trajectory = false;        % - - Plot reference vs actual trajectory
 params.debug.plot_temperature = false;       % - - Plot temperature field evolution
 params.debug.plot_forces = false;            % - - Plot inertial and elastic forces
-params.debug.verbose = true;                 % - - Print progress messages
+params.debug.verbose = false;                % - - Print progress messages (also controls plot generation)
 
 params.debug.save_intermediate = false;      % - - Save intermediate results
 params.debug.check_stability = true;         % - - Check numerical stability

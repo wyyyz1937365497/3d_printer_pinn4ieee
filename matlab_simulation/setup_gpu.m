@@ -1,4 +1,4 @@
-function gpu_info = gpu_utils(gpu_id)
+function gpu_info = setup_gpu(gpu_id)
 % SETUP_GPU - Configure and initialize GPU for MATLAB simulation
 %
 % This function sets up the specified GPU device for computation,
