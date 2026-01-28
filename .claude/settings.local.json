@@ -6,7 +6,8 @@
       "WebSearch",
       "Bash(findstr:*)",
       "mcp__web-search-prime__webSearchPrime",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(grep:*)"
     ]
   }
 }

@@ -298,8 +298,8 @@ function simulation_data = run_full_simulation_with_reconstruction(...
     gpu_info = setup_gpu(gpu_id);
 
     % 调试输出
-    fprintf('  GPU检查: use_gpu=%d, n_points=%d, n_points>1000=%d\n', ...
-            gpu_info.use_gpu, n_points, n_points > 1000);
+    fprintf('  GPU检查: use_gpu=%d, n_points=%d, n_points>500=%d\n', ...
+            gpu_info.use_gpu, n_points, n_points > 500);
 
     if gpu_info.use_gpu && n_points > 500
         fprintf('  使用GPU加速仿真\n');
@@ -309,20 +309,17 @@ function simulation_data = run_full_simulation_with_reconstruction(...
         if ~gpu_info.use_gpu
             fprintf('    原因: GPU不可用\n');
         else
-            fprintf('    原因: 数据点数过小 (n_points=%d <= 1000)\n', n_points);
+            fprintf('    原因: 数据点数过小 (n_points=%d <= 500)\n', n_points);
         end
         trajectory_results = simulate_trajectory_error(trajectory_data, params);
     end
 
-    % Step 3: Simulate thermal field
+    % Step 3: Simulate thermal field (already includes adhesion calculation)
     thermal_results = simulate_thermal_field(trajectory_data, params);
 
-    % Step 4: Calculate adhesion strength
-    adhesion_results = calculate_adhesion_strength(thermal_results, params);
-
-    % Step 5: Combine results
+    % Step 4: Combine results
     simulation_data = combine_results(trajectory_data, trajectory_results, ...
-                                     thermal_results, adhesion_results, params);
+                                     thermal_results, params);
 
     % Step 6: Save
     if nargin >= 2 && ~isempty(output_file)
@@ -333,7 +330,7 @@ end
 
 %% Helper function: Combine results
 function simulation_data = combine_results(trajectory, trajectory_results, ...
-                                          thermal, adhesion, params)
+                                          thermal, params)
 
     t = trajectory.time;
     n_points = length(t);
@@ -391,8 +388,8 @@ function simulation_data = combine_results(trajectory, trajectory_results, ...
     simulation_data.temp_gradient_z = thermal.temp_gradient_z(:);
     simulation_data.interlayer_time = thermal.interlayer_time(:);
 
-    % Adhesion
-    simulation_data.adhesion_ratio = adhesion.adhesion_ratio(:);
+    % Adhesion (from thermal_results, already calculated)
+    simulation_data.adhesion_ratio = thermal.adhesion_ratio(:);
 
     % G-code features
     simulation_data.is_extruding = trajectory.is_extruding(:);

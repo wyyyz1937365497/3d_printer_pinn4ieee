@@ -259,7 +259,19 @@ function thermal_results = simulate_thermal_field(trajectory_data, params)
     time_above_tg = sum(T_nozzle_history > params.material.glass_transition) * mean(diff(t));
 
     % 最大冷却速率
-    max_cooling_rate = max(cooling_rate(T_nozzle_history < params.printing.nozzle_temp - 50));
+    cooling_mask = T_nozzle_history < params.printing.nozzle_temp - 50;
+    valid_cooling = cooling_rate(cooling_mask & ~isnan(cooling_rate));
+    if ~isempty(valid_cooling)
+        max_cooling_rate = max(abs(valid_cooling));
+    else
+        % Fallback: use maximum absolute cooling rate (excluding NaN)
+        valid_all = cooling_rate(~isnan(cooling_rate));
+        if ~isempty(valid_all)
+            max_cooling_rate = max(abs(valid_all));
+        else
+            max_cooling_rate = 0;
+        end
+    end
 
     % 打印期间的平均界面温度
     mean_interface_temp = mean(T_interface(trajectory_data.is_extruding));
@@ -340,9 +352,15 @@ function thermal_results = simulate_thermal_field(trajectory_data, params)
         end
     end
 
-    mean_interlayer_time = mean(interlayer_time(interlayer_time > 0));
+    valid_interlayer_times = interlayer_time(interlayer_time > 0 & ~isnan(interlayer_time));
 
-    fprintf('    平均层间时间：%.2f s\n', mean_interlayer_time);
+    if isempty(valid_interlayer_times)
+        fprintf('    平均层间时间：N/A (单层仿真)\n');
+        mean_interlayer_time = NaN;
+    else
+        mean_interlayer_time = mean(valid_interlayer_times);
+        fprintf('    平均层间时间：%.2f s\n', mean_interlayer_time);
+    end
 
     %% 温度梯度（简化）
     fprintf('  估算温度梯度...\n');

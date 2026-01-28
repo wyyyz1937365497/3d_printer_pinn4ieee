@@ -26,6 +26,30 @@ function adhesion_data = calculate_adhesion_strength(thermal_data, params)
 
     fprintf('Calculating interlayer adhesion strength...\n');
 
+    %% Check if adhesion_ratio is already calculated in thermal_data
+    if isfield(thermal_data, 'adhesion_ratio')
+        fprintf('  Using pre-calculated adhesion from thermal simulation\n');
+        adhesion_data.adhesion_ratio = thermal_data.adhesion_ratio;
+
+        % Calculate absolute adhesion strength (MPa)
+        bulk_strength_pla = 60;  % MPa (typical tensile strength of PLA)
+        adhesion_data.adhesion_strength = adhesion_data.adhesion_ratio * bulk_strength_pla;
+
+        % Statistics
+        fprintf('  Adhesion strength statistics:\n');
+        fprintf('    Mean adhesion ratio: %.3f ± %.3f\n', ...
+                mean(adhesion_data.adhesion_ratio, 'omitnan'), ...
+                std(adhesion_data.adhesion_ratio, 'omitnan'));
+        fprintf('    Min adhesion ratio: %.3f\n', min(adhesion_data.adhesion_ratio));
+        fprintf('    Max adhesion ratio: %.3f\n', max(adhesion_data.adhesion_ratio));
+        fprintf('    Mean adhesion strength: %.2f ± %.2f MPa\n', ...
+                mean(adhesion_data.adhesion_strength, 'omitnan'), ...
+                std(adhesion_data.adhesion_strength, 'omitnan'));
+
+        fprintf('Interlayer adhesion calculation complete!\n');
+        return;
+    end
+
     n_points = length(thermal_data.T_interface);
 
     %% Extract thermal data

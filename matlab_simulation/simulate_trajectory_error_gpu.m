@@ -19,6 +19,10 @@ function results = simulate_trajectory_error_gpu(trajectory_data, params, gpu_in
 
     fprintf('Simulating trajectory error with GPU acceleration...\n');
 
+    %% Force use GPU 1 (cuda1)
+    gpuDevice(1);
+    fprintf('  Using GPU 1 (cuda1)\n');
+
     %% Extract time series data
     t = trajectory_data.time;
     n_points = length(t);
@@ -47,14 +51,14 @@ function results = simulate_trajectory_error_gpu(trajectory_data, params, gpu_in
             params.dynamics.y.natural_freq, params.dynamics.y.damping_ratio);
 
     %% Check if GPU should be used
-    use_gpu = gpu_info.use_gpu && n_points > 1000;  % Only use GPU for large datasets
+    use_gpu = gpu_info.use_gpu && n_points > 500;  % Use GPU for datasets > 500 points
 
     if use_gpu
         fprintf('  Using GPU acceleration (cuda%d)\n', gpu_info.device.Index);
         fprintf('  Dataset size: %d points (GPU efficient)\n', n_points);
     else
         if gpu_info.available
-            fprintf('  Using CPU (dataset too small for GPU benefit: %d points)\n', n_points);
+            fprintf('  Using CPU (dataset too small: %d points)\n', n_points);
         else
             fprintf('  Using CPU (GPU not available)\n');
         end
@@ -76,6 +80,9 @@ function results = simulate_trajectory_error_gpu(trajectory_data, params, gpu_in
             min(ax_ref), max(ax_ref), min(ay_ref), max(ay_ref));
 
     if use_gpu
+        % Ensure we're using GPU 1 before creating any gpuArrays
+        gpuDevice(1);
+
         % Transfer to GPU
         t_gpu = gpuArray(t_uniform);
         t_orig_gpu = gpuArray(t);
@@ -111,6 +118,9 @@ function results = simulate_trajectory_error_gpu(trajectory_data, params, gpu_in
     x_state(:, 1) = [0; 0];
 
     if use_gpu
+        % Ensure we're using GPU 1 before creating any gpuArrays
+        gpuDevice(1);
+
         % Transfer to GPU
         ax_gpu = gpuArray(ax_ref_uniform);
         x_state_gpu = gpuArray(x_state);
@@ -179,6 +189,9 @@ function results = simulate_trajectory_error_gpu(trajectory_data, params, gpu_in
     By = [0; -1];
 
     if use_gpu
+        % Ensure we're using GPU 1 before creating any gpuArrays
+        gpuDevice(1);
+
         % GPU version with proper RK4 loop
         ay_gpu = gpuArray(ay_ref_uniform);
         y_state_gpu = gpuArray(y_state);
