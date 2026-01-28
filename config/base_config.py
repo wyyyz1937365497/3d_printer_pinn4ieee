@@ -12,20 +12,46 @@ class DataConfig:
     """Data configuration"""
     # Data paths
     data_dir: str = "data/processed"
-    train_file: str = "train_data.pkl"
-    val_file: str = "val_data.pkl"
-    test_file: str = "test_data.pkl"
+    train_dir: str = "data_simulation_layer25"  # MATLAB simulation data
+    val_dir: str = "validation_layer25"
+    test_dir: str = "data_test"
 
     # Data parameters
     seq_len: int = 200  # Sequence length (timesteps)
     pred_len: int = 50  # Prediction length (timesteps)
-    sampling_rate: int = 1000  # Hz
+    stride: int = 10  # Stride between sequences
+    sampling_rate: int = 100  # Hz (MATLAB uses 100Hz)
 
-    # Feature dimensions
-    num_features: int = 12  # Number of input features (observable sensor data)
-    num_quality_outputs: int = 5  # Implicit quality parameters: adhesion_strength, internal_stress, porosity, dimensional_accuracy, quality_score
+    # Input features (12 total) - 明确定义
+    input_features: list = field(default_factory=lambda: [
+        # Ideal trajectory (6) - 理想轨迹
+        'x_ref', 'y_ref', 'z_ref',           # 参考位置
+        'vx_ref', 'vy_ref', 'vz_ref',        # 参考速度
+
+        # Observable measurements (6) - 显式测量量
+        'T_nozzle', 'T_interface',            # 温度
+        'F_inertia_x', 'F_inertia_y',        # 惯性力
+        'cooling_rate', 'layer_num'          # 冷却速率 + 层号
+    ])
+
+    # Output labels - 明确定义
+    output_trajectory: list = field(default_factory=lambda: [
+        'error_x', 'error_y'                  # 误差向量 (2D)
+    ])
+
+    output_quality: list = field(default_factory=lambda: [
+        'adhesion_ratio',                    # 粘结强度比
+        'internal_stress',                   # 内应力 (MPa)
+        'porosity',                          # 孔隙率 (%)
+        'dimensional_accuracy',              # 尺寸精度
+        'quality_score'                      # 综合质量评分
+    ])
+
+    # Feature dimensions (for backward compatibility)
+    num_features: int = 12  # Number of input features
+    num_quality_outputs: int = 5  # Number of quality outputs
     num_fault_classes: int = 4  # Normal, Nozzle Clog, Mechanical Loose, Motor Fault
-    num_trajectory_outputs: int = 3  # dx, dy, dz
+    num_trajectory_outputs: int = 2  # error_x, error_y
 
     # Preprocessing
     normalize: bool = True

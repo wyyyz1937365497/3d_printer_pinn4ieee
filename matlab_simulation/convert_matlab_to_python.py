@@ -259,6 +259,12 @@ def create_training_dataset(data, output_file):
         if 'adhesion_ratio' in data:
             outputs_group.create_dataset('adhesion_ratio', data=data['adhesion_ratio'], compression='gzip')
 
+        # Quality metrics (Implicit quality parameters)
+        for var in ['internal_stress', 'porosity', 'dimensional_accuracy', 'quality_score']:
+            if var in data:
+                outputs_group.create_dataset(var, data=data[var], compression='gzip')
+                print(f"  Added quality metric: {var}")
+
         # === METADATA ===
         # Save variable descriptions
         descriptions = {
@@ -319,6 +325,10 @@ def create_training_dataset(data, output_file):
             'error_magnitude': 'Position error magnitude (mm)',
             'error_direction': 'Position error direction (rad)',
             'adhesion_ratio': 'Interlayer adhesion ratio (0-1)',
+            'internal_stress': 'Internal residual stress (MPa)',
+            'porosity': 'Porosity percentage (0-100%)',
+            'dimensional_accuracy': 'Dimensional accuracy error (mm)',
+            'quality_score': 'Overall quality score (0-1)',
         }
 
         desc_group = f.create_group('descriptions')

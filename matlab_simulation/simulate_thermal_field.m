@@ -31,7 +31,17 @@ function thermal_results = simulate_thermal_field(trajectory_data, params)
     x_nozzle = trajectory_data.x;  % Use reference trajectory initially
     y_nozzle = trajectory_data.y;
     z_nozzle = trajectory_data.z;
-    v_extrude = trajectory_data.v_actual;  % mm/s
+
+    % Calculate velocity magnitude from components
+    if isfield(trajectory_data, 'v_actual')
+        v_extrude = trajectory_data.v_actual;  % mm/s
+    else
+        % Calculate from velocity components
+        vx = trajectory_data.vx;
+        vy = trajectory_data.vy;
+        vz = trajectory_data.vz;
+        v_extrude = sqrt(vx.^2 + vy.^2 + vz.^2);  % mm/s
+    end
 
     n_points = length(t);
 
@@ -73,7 +83,29 @@ function thermal_results = simulate_thermal_field(trajectory_data, params)
     %% Initialize temperature field
     fprintf('  Initializing temperature field...\n');
 
-    T = ones(ny, nx, nz) * params.environment.ambient_temp;  % °C
+    % Get layer information
+    if isfield(trajectory_data, 'layer_num')
+        current_layer = trajectory_data.layer_num(1);
+    else
+        current_layer = 1;
+    end
+
+    % Calculate thermal history for initial temperature
+    print_times = [];  % Could be passed in or estimated
+    layer_intervals = [];  % Could be passed in or estimated
+
+    if current_layer > 1 && exist('calculate_thermal_history', 'file')
+        T_initial = calculate_thermal_history(current_layer, ...
+                                              print_times, ...
+                                              layer_intervals, ...
+                                              params);
+        fprintf('    Using thermal accumulation model: Initial T = %.1f°C\n', T_initial);
+    else
+        T_initial = params.environment.ambient_temp;
+        fprintf('    Using ambient temperature: Initial T = %.1f°C\n', T_initial);
+    end
+
+    T = ones(ny, nx, nz) * T_initial;  % °C - Use calculated initial temperature
 
     % Set bed temperature at bottom
     T(:,:,1) = params.printing.bed_temp;

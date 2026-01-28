@@ -5,14 +5,14 @@
 ## 项目概述
 
 本项目使用MATLAB仿真生成训练数据，Python训练PINN模型，实现：
-- 轨迹误差预测（基于二阶动力学系统）
-- 层间粘结强度预测（基于热传导模型）
-- 打印质量实时评估
-- 故障检测和分类
+- **轨迹误差预测**（基于二阶动力学系统）
+- **质量特征预测**（内应力、孔隙率、尺寸精度等）
+- **层间粘结强度预测**（基于热传导模型）
+- **打印质量实时评估**
 
 **关键特性**:
 - 基于物理的仿真（Ender-3 V2 + PLA材料参数）
-- GPU加速数据生成（cuda1，30-40倍效率提升）
+- GPU加速数据生成（2-5倍效率提升）
 - 优化的数据生成策略（单层参数扫描 + 三层验证）
 - 完整的MATLAB→Python数据转换流程
 
@@ -24,53 +24,58 @@
 
 ```matlab
 cd('F:\TJ\3d_print\3d_printer_pinn4ieee')
-collect_data_optimized
+collect_data
 ```
 
 **预期结果**:
-- 100,000+ 训练样本
-- 仿真时间: 1.5 小时
-- GPU: cuda1
+- ~109,000 训练样本
+- 仿真时间: ~1.5 小时（GPU）
 
-### 2. 转换数据格式（Python）
+### 2. 训练模型（Python）
 
 ```bash
-pip install numpy scipy h5py pandas
+# 快速测试训练
+python experiments/quick_train_simulation.py \
+    --data_dir data_simulation_layer25 \
+    --epochs 10 \
+    --batch_size 32
 
-python matlab_simulation/convert_matlab_to_python.py \
-    "data_simulation_layer25/*.mat" \
-    training \
-    -o training_data
+# 完整训练
+python experiments/train_unified_model.py \
+    --config unified \
+    --epochs 100
 ```
 
-### 3. 训练模型
+### 3. 评估模型
 
-```python
-python experiments/train_unified_model.py
+```bash
+python experiments/evaluate_model.py \
+    --checkpoint checkpoints/best_model.pth \
+    --test_dir validation_layer50
 ```
 
 ---
 
 ## 文档导航
 
-### 核心文档
+### 📚 核心文档
 
 | 文档 | 用途 |
 |------|------|
-| **[docs/QUICK_START.md](docs/QUICK_START.md)** | 5分钟快速上手 |
-| **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)** | 完整使用指南 |
-| **[docs/THESIS_DOCUMENTATION.md](docs/THESIS_DOCUMENTATION.md)** | 论文写作参考（文献综述、理论公式） |
+| **[docs/SIMULATION_DATA_GUIDE.md](docs/SIMULATION_DATA_GUIDE.md)** | 完整使用指南（数据生成→训练→评估） |
+| **[matlab_simulation/README.md](matlab_simulation/README.md)** | MATLAB仿真系统文档 |
+| **[docs/THESIS_DOCUMENTATION.md](docs/THESIS_DOCUMENTATION.md)** | 论文写作参考（文献综述、理论） ⭐ |
+| **[docs/TECHNICAL_DOCUMENTATION.md](docs/TECHNICAL_DOCUMENTATION.md)** | 完整技术文档（公式、算法） ⭐ |
 
-### 快速查找
+### 📖 快速查找
 
-- **我想快速开始** → [docs/QUICK_START.md](docs/QUICK_START.md)
-- **系统如何工作** → [docs/USER_GUIDE.md](docs/USER_GUIDE.md) 系统概述
-- **如何配置参数** → [docs/USER_GUIDE.md](docs/USER_GUIDE.md) 参数配置
-- **GPU加速原理** → [docs/USER_GUIDE.md](docs/USER_GUIDE.md) GPU加速
-- **为什么优化策略高效** → [docs/USER_GUIDE.md](docs/USER_GUIDE.md) 优化策略
-- **遇到问题** → [docs/USER_GUIDE.md](docs/USER_GUIDE.md) 故障排除
-- **写论文需要文献** → [docs/THESIS_DOCUMENTATION.md](docs/THESIS_DOCUMENTATION.md)
-- **需要物理公式推导** → [docs/THESIS_DOCUMENTATION.md](docs/THESIS_DOCUMENTATION.md)
+- **完整工作流程** → [docs/SIMULATION_DATA_GUIDE.md](docs/SIMULATION_DATA_GUIDE.md)
+- **MATLAB仿真详解** → [matlab_simulation/README.md](matlab_simulation/README.md)
+- **Python数据加载** → [docs/SIMULATION_DATA_GUIDE.md](docs/SIMULATION_DATA_GUIDE.md#python数据加载)
+- **模型训练** → [docs/SIMULATION_DATA_GUIDE.md](docs/SIMULATION_DATA_GUIDE.md#模型训练)
+- **模型评估** → [docs/SIMULATION_DATA_GUIDE.md](docs/SIMULATION_DATA_GUIDE.md#模型评估)
+- **论文写作材料** → [docs/THESIS_DOCUMENTATION.md](docs/THESIS_DOCUMENTATION.md) ⭐
+- **物理公式推导** → [docs/TECHNICAL_DOCUMENTATION.md](docs/TECHNICAL_DOCUMENTATION.md) ⭐
 
 ---
 

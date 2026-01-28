@@ -5,6 +5,11 @@ This package implements realistic physics models for generating
 synthetic sensor data and quality metrics.
 """
 
+from .dataset import (
+    PrinterSimulationDataset,
+    create_dataloaders,
+)
+
 from .thermal_model import (
     SimulationParameters,
     ThermalSimulationModel,
@@ -28,6 +33,10 @@ from .simulation_pipeline import (
 )
 
 __all__ = [
+    # Dataset loading
+    'PrinterSimulationDataset',
+    'create_dataloaders',
+
     # Parameters and basic models
     'SimulationParameters',
     'ThermalSimulationModel',

@@ -79,8 +79,20 @@ function simulation_data = run_full_simulation_gpu(gcode_file, output_file, pars
     end
     fprintf('\n');
 
-    %% Step 3: Simulate trajectory error (GPU or CPU)
-    fprintf('STEP 3: Simulating trajectory error...\n');
+    %% Step 3: Simulate thermal field
+    fprintf('STEP 3: Simulating thermal field...\n');
+    thermal_results = simulate_thermal_field(trajectory_data, params);
+    fprintf('\n');
+
+    %% Step 4: Calculate quality metrics (from reference trajectory ONLY)
+    fprintf('STEP 4: Calculating implicit quality parameters...\n');
+    fprintf('  Note: Quality metrics are computed from reference trajectory + thermal field\n');
+    fprintf('  They do NOT depend on simulated trajectory errors\n');
+    quality_data = calculate_quality_metrics(trajectory_data, thermal_results, params);
+    fprintf('\n');
+
+    %% Step 5: Simulate trajectory error (GPU or CPU)
+    fprintf('STEP 5: Simulating trajectory error...\n');
 
     % Choose GPU or CPU based on data size and GPU availability
     n_points = length(trajectory_data.time);
@@ -98,13 +110,8 @@ function simulation_data = run_full_simulation_gpu(gcode_file, output_file, pars
     end
     fprintf('\n');
 
-    %% Step 4: Simulate thermal field
-    fprintf('STEP 4: Simulating thermal field...\n');
-    thermal_results = simulate_thermal_field(trajectory_data, params);
-    fprintf('\n');
-
-    %% Step 5: Combine results
-    fprintf('STEP 5: Combining results into unified dataset...\n');
+    %% Step 6: Combine results
+    fprintf('STEP 6: Combining results into unified dataset...\n');
 
     t = trajectory_data.time;
     n_points = length(t);
@@ -180,6 +187,12 @@ function simulation_data = run_full_simulation_gpu(gcode_file, output_file, pars
     % === ADHESION STRENGTH ===
     simulation_data.adhesion_ratio = thermal_results.adhesion_ratio(:);
 
+    % === QUALITY METRICS (Implicit Parameters) ===
+    simulation_data.internal_stress = quality_data.internal_stress(:);
+    simulation_data.porosity = quality_data.porosity(:);
+    simulation_data.dimensional_accuracy = quality_data.dimensional_accuracy(:);
+    simulation_data.quality_score = quality_data.quality_score(:);
+
     % === SYSTEM PARAMETERS ===
     simulation_data.params = params;
 
@@ -190,8 +203,8 @@ function simulation_data = run_full_simulation_gpu(gcode_file, output_file, pars
     fprintf('  Number of variables: %d\n', length(fieldnames(simulation_data)));
     fprintf('\n');
 
-    %% Step 6: Save to file
-    fprintf('STEP 6: Saving simulation results...\n');
+    %% Step 7: Save to file
+    fprintf('STEP 7: Saving simulation results...\n');
     save(output_file, 'simulation_data', '-v7.3');
     fprintf('  Saved to: %s\n', output_file);
     fprintf('\n');
@@ -244,6 +257,17 @@ function simulation_data = run_full_simulation_gpu(gcode_file, output_file, pars
             mean(simulation_data.adhesion_ratio(valid_adhesion)));
     fprintf('  Min adhesion ratio: %.2f\n', ...
             min(simulation_data.adhesion_ratio(valid_adhesion)));
+    fprintf('\n');
+
+    fprintf('QUALITY METRICS:\n');
+    fprintf('  Internal stress: %.2f ± %.2f MPa\n', ...
+            mean(simulation_data.internal_stress), std(simulation_data.internal_stress));
+    fprintf('  Porosity: %.2f ± %.2f %%\n', ...
+            mean(simulation_data.porosity), std(simulation_data.porosity));
+    fprintf('  Dimensional error: %.3f ± %.3f mm\n', ...
+            mean(simulation_data.dimensional_accuracy), std(simulation_data.dimensional_accuracy));
+    fprintf('  Quality score: %.3f ± %.3f\n', ...
+            mean(simulation_data.quality_score), std(simulation_data.quality_score));
     fprintf('\n');
 
     fprintf('============================================================\n');

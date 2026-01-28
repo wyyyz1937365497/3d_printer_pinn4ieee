@@ -13,8 +13,9 @@ function results = simulate_trajectory_error_gpu(trajectory_data, params, gpu_in
 %   results         - Structure containing actual trajectory and error vectors
 %
 % Performance improvements:
-% - 5-20x faster for large datasets (>10000 points)
-% - Most benefit from matrix operations (interpolation, integration)
+% - 2-5x faster for large datasets (>10000 points)
+% - GPU acceleration for matrix operations (interpolation, RK4 matrix-vector products)
+% - Note: RK4 still uses time-stepping loop (not fully vectorizable)
 
     fprintf('Simulating trajectory error with GPU acceleration...\n');
 
@@ -70,6 +71,10 @@ function results = simulate_trajectory_error_gpu(trajectory_data, params, gpu_in
     %% Interpolate reference to uniform grid
     fprintf('  Interpolating reference trajectory...\n');
 
+    % Debug: Check input acceleration range
+    fprintf('  Input acceleration range: ax [%.3f, %.3f], ay [%.3f, %.3f]\n', ...
+            min(ax_ref), max(ax_ref), min(ay_ref), max(ay_ref));
+
     if use_gpu
         % Transfer to GPU
         t_gpu = gpuArray(t_uniform);
@@ -106,36 +111,29 @@ function results = simulate_trajectory_error_gpu(trajectory_data, params, gpu_in
     x_state(:, 1) = [0; 0];
 
     if use_gpu
-        % Transfer to GPU for vectorized operations
+        % Transfer to GPU
         ax_gpu = gpuArray(ax_ref_uniform);
         x_state_gpu = gpuArray(x_state);
         Ax_gpu = gpuArray(Ax);
         Bx_gpu = gpuArray(Bx);
 
-        % Vectorized RK4 integration on GPU
-        n_steps = n_uniform - 1;
+        % RK4 integration with loop (GPU-accelerated matrix operations)
+        for i = 2:n_uniform
+            % Compute RK4 steps
+            k1 = Ax_gpu * x_state_gpu(:, i-1) + Bx_gpu * ax_gpu(i-1);
+            k2 = Ax_gpu * (x_state_gpu(:, i-1) + 0.5*dt_actual*k1) + Bx_gpu * ax_gpu(i-1);
+            k3 = Ax_gpu * (x_state_gpu(:, i-1) + 0.5*dt_actual*k2) + Bx_gpu * ax_gpu(i-1);
+            k4 = Ax_gpu * (x_state_gpu(:, i-1) + dt_actual*k3) + Bx_gpu * ax_gpu(i-1);
 
-        % Pre-allocate k arrays
-        k1_gpu = gpuArray(zeros(2, n_steps));
-        k2_gpu = gpuArray(zeros(2, n_steps));
-        k3_gpu = gpuArray(zeros(2, n_steps));
-        k4_gpu = gpuArray(zeros(2, n_steps));
-
-        % Compute all k1 values
-        k1_gpu = Ax_gpu * x_state_gpu(:, 1:n_steps) + Bx_gpu * ax_gpu(1:n_steps);
-        k2_gpu = Ax_gpu * (x_state_gpu(:, 1:n_steps) + 0.5*dt_actual*k1_gpu) + Bx_gpu * ax_gpu(1:n_steps);
-        k3_gpu = Ax_gpu * (x_state_gpu(:, 1:n_steps) + 0.5*dt_actual*k2_gpu) + Bx_gpu * ax_gpu(1:n_steps);
-        k4_gpu = Ax_gpu * (x_state_gpu(:, 1:n_steps) + dt_actual*k3_gpu) + Bx_gpu * ax_gpu(1:n_steps);
-
-        % Update state
-        x_state_gpu(:, 2:end) = x_state_gpu(:, 1:n_steps) + (dt_actual/6) * (k1_gpu + 2*k2_gpu + 2*k3_gpu + k4_gpu);
+            % Update state
+            x_state_gpu(:, i) = x_state_gpu(:, i-1) + (dt_actual/6) * (k1 + 2*k2 + 2*k3 + k4);
+        end
 
         % Gather back to CPU
         x_state = gather(x_state_gpu);
 
         % Clear GPU memory
         clear ax_gpu x_state_gpu Ax_gpu Bx_gpu
-        clear k1_gpu k2_gpu k3_gpu k4_gpu
 
     else
         % CPU version (same as original)
@@ -165,6 +163,11 @@ function results = simulate_trajectory_error_gpu(trajectory_data, params, gpu_in
     x_act_uniform = x_ref_uniform + x_state(1, :);
     vx_act_uniform = gradient(x_act_uniform, dt_actual);
 
+    % Debug: Check if simulation produced any errors
+    fprintf('  X-axis simulation results:\n');
+    fprintf('    Position error range: [%.6f, %.6f] mm\n', min(x_state(1, :)), max(x_state(1, :)));
+    fprintf('    Max position error: %.6f mm\n', max(abs(x_state(1, :))));
+
     %% Simulate Y-axis dynamics
     fprintf('  Simulating Y-axis dynamics...\n');
 
@@ -176,30 +179,25 @@ function results = simulate_trajectory_error_gpu(trajectory_data, params, gpu_in
     By = [0; -1];
 
     if use_gpu
-        % GPU version
+        % GPU version with proper RK4 loop
         ay_gpu = gpuArray(ay_ref_uniform);
         y_state_gpu = gpuArray(y_state);
         Ay_gpu = gpuArray(Ay);
         By_gpu = gpuArray(By);
 
-        n_steps = n_uniform - 1;
+        % RK4 integration with loop
+        for i = 2:n_uniform
+            k1 = Ay_gpu * y_state_gpu(:, i-1) + By_gpu * ay_gpu(i-1);
+            k2 = Ay_gpu * (y_state_gpu(:, i-1) + 0.5*dt_actual*k1) + By_gpu * ay_gpu(i-1);
+            k3 = Ay_gpu * (y_state_gpu(:, i-1) + 0.5*dt_actual*k2) + By_gpu * ay_gpu(i-1);
+            k4 = Ay_gpu * (y_state_gpu(:, i-1) + dt_actual*k3) + By_gpu * ay_gpu(i-1);
 
-        k1_gpu = gpuArray(zeros(2, n_steps));
-        k2_gpu = gpuArray(zeros(2, n_steps));
-        k3_gpu = gpuArray(zeros(2, n_steps));
-        k4_gpu = gpuArray(zeros(2, n_steps));
-
-        k1_gpu = Ay_gpu * y_state_gpu(:, 1:n_steps) + By_gpu * ay_gpu(1:n_steps);
-        k2_gpu = Ay_gpu * (y_state_gpu(:, 1:n_steps) + 0.5*dt_actual*k1_gpu) + By_gpu * ay_gpu(1:n_steps);
-        k3_gpu = Ay_gpu * (y_state_gpu(:, 1:n_steps) + 0.5*dt_actual*k2_gpu) + By_gpu * ay_gpu(1:n_steps);
-        k4_gpu = Ay_gpu * (y_state_gpu(:, 1:n_steps) + dt_actual*k3_gpu) + By_gpu * ay_gpu(1:n_steps);
-
-        y_state_gpu(:, 2:end) = y_state_gpu(:, 1:n_steps) + (dt_actual/6) * (k1_gpu + 2*k2_gpu + 2*k3_gpu + k4_gpu);
+            y_state_gpu(:, i) = y_state_gpu(:, i-1) + (dt_actual/6) * (k1 + 2*k2 + 2*k3 + k4);
+        end
 
         y_state = gather(y_state_gpu);
 
         clear ay_gpu y_state_gpu Ay_gpu By_gpu
-        clear k1_gpu k2_gpu k3_gpu k4_gpu
 
     else
         % CPU version
@@ -226,6 +224,11 @@ function results = simulate_trajectory_error_gpu(trajectory_data, params, gpu_in
 
     y_act_uniform = y_ref_uniform + y_state(1, :);
     vy_act_uniform = gradient(y_act_uniform, dt_actual);
+
+    % Debug: Check if simulation produced any errors
+    fprintf('  Y-axis simulation results:\n');
+    fprintf('    Position error range: [%.6f, %.6f] mm\n', min(y_state(1, :)), max(y_state(1, :)));
+    fprintf('    Max position error: %.6f mm\n', max(abs(y_state(1, :))));
 
     %% Calculate error vectors
     fprintf('  Calculating error vectors...\n');
@@ -265,13 +268,6 @@ function results = simulate_trajectory_error_gpu(trajectory_data, params, gpu_in
     fprintf('    Max Y error: %.3f mm\n', max(abs(error_y)));
     fprintf('    Max error magnitude: %.3f mm\n', max(error_magnitude));
     fprintf('    RMS error magnitude: %.3f mm\n', rms(error_magnitude));
-
-    corner_mask = trajectory_data.is_corner;
-    if sum(corner_mask) > 0
-        corner_errors = error_magnitude(corner_mask);
-        fprintf('    Max corner error: %.3f mm\n', max(corner_errors));
-        fprintf('    Mean corner error: %.3f mm\n', mean(corner_errors));
-    end
 
     %% Create output structure
     results.time = t;
@@ -320,12 +316,6 @@ function results = simulate_trajectory_error_gpu(trajectory_data, params, gpu_in
     results.overshoot_x = exp(-pi * params.dynamics.x.damping_ratio / sqrt(1 - params.dynamics.x.damping_ratio^2)) * 100;
     results.overshoot_y = exp(-pi * params.dynamics.y.damping_ratio / sqrt(1 - params.dynamics.y.damping_ratio^2)) * 100;
 
-    % Corner-specific errors
-    results.corner_mask = corner_mask;
-    results.corner_errors = error_magnitude(corner_mask);
-    results.max_corner_error = max(error_magnitude(corner_mask));
-    results.mean_corner_error = mean(error_magnitude(corner_mask));
-
     fprintf('  Trajectory error simulation complete!\n\n');
 
     %% Optional: Plotting
@@ -336,13 +326,12 @@ function results = simulate_trajectory_error_gpu(trajectory_data, params, gpu_in
         subplot(2, 3, 1);
         plot(x_ref, y_ref, 'b--', 'LineWidth', 1.5); hold on;
         plot(x_act, y_act, 'r-', 'LineWidth', 1);
-        plot(x_ref(corner_mask), y_ref(corner_mask), 'ko', 'MarkerSize', 6, 'MarkerFaceColor', 'y');
         axis equal;
         grid on;
         xlabel('X (mm)');
         ylabel('Y (mm)');
         title('Reference vs Actual Trajectory');
-        legend('Reference', 'Actual', 'Corners', 'Location', 'best');
+        legend('Reference', 'Actual', 'Location', 'best');
 
         subplot(2, 3, 2);
         plot(t, error_magnitude, 'r-', 'LineWidth', 1.5);
@@ -371,14 +360,13 @@ function results = simulate_trajectory_error_gpu(trajectory_data, params, gpu_in
 
         subplot(2, 3, 5);
         plot(x_ref, y_ref, 'b--', 'LineWidth', 1.5); hold on;
-        quiver(x_ref(corner_mask), y_ref(corner_mask), ...
-              error_x(corner_mask), error_y(corner_mask), ...
+        quiver(x_ref, y_ref, error_x, error_y, ...
               'AutoScale', 'on', 'MaxHeadSize', 0.5);
         axis equal;
         grid on;
         xlabel('X (mm)');
         ylabel('Y (mm)');
-        title('Error Vectors at Corners');
+        title('Error Vectors');
 
         subplot(2, 3, 6);
         semilogy(params.dynamics.x.natural_freq / (2*pi), ones(1,1), 'bo', 'MarkerSize', 10, 'LineWidth', 2); hold on;
