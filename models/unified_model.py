@@ -1,7 +1,7 @@
 """
-Unified PINN-Seq3D Model
+统一PINN-Seq3D模型
 
-Combines quality prediction and trajectory correction in a single model
+在单一模型中结合质量预测和轨迹校正
 """
 
 import torch
@@ -16,25 +16,25 @@ from .decoders.trajectory_decoder import TrajectoryCorrectionHead
 
 class UnifiedPINNSeq3D(BaseModel):
     """
-    Unified model for 3D printer quality prediction and trajectory correction
+    用于3D打印机质量预测和轨迹校正的统一模型
 
-    Architecture:
-        Input (sensor data) -> Shared PINN-Guided Transformer Encoder
-                                 -> Quality Prediction Head (RUL, temp, vibration, quality score)
-                                 -> Fault Classification Head (4 fault types)
-                                 -> Trajectory Correction Head (dx, dy, dz)
+    架构:
+        输入（传感器数据）-> 共享PINN引导的Transformer编码器
+                                 -> 质量预测头（RUL、温度、振动、质量分数）
+                                 -> 故障分类头（4种故障类型）
+                                 -> 轨迹校正头（dx, dy, dz）
     """
 
     def __init__(self, config):
         """
-        Initialize unified model
+        初始化统一模型
 
-        Args:
-            config: Configuration object with model parameters
+        参数:
+            config: 包含模型参数的配置对象
         """
         super().__init__(config)
 
-        # Shared encoder
+        # 共享编码器
         self.encoder = PINNTransformerEncoder(
             num_features=config.data.num_features,
             d_model=config.model.d_model,
@@ -45,7 +45,7 @@ class UnifiedPINNSeq3D(BaseModel):
             activation=config.model.activation,
         )
 
-        # Quality prediction head
+        # 质量预测头
         self.quality_head = QualityPredictionHead(
             d_model=config.model.d_model,
             hidden_dims=config.model.quality_hidden_dims,
@@ -53,7 +53,7 @@ class UnifiedPINNSeq3D(BaseModel):
             num_outputs=config.data.num_quality_outputs,
         )
 
-        # Fault classification head
+        # 故障分类头
         self.fault_head = FaultClassificationHead(
             d_model=config.model.d_model,
             hidden_dims=config.model.fault_hidden_dims,
@@ -61,7 +61,7 @@ class UnifiedPINNSeq3D(BaseModel):
             num_classes=config.data.num_fault_classes,
         )
 
-        # Trajectory correction head
+        # 轨迹校正头
         self.trajectory_head = TrajectoryCorrectionHead(
             d_model=config.model.d_model,
             lstm_hidden=config.model.trajectory_lstm_hidden,
@@ -73,28 +73,28 @@ class UnifiedPINNSeq3D(BaseModel):
 
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> Dict[str, torch.Tensor]:
         """
-        Forward pass
+        前向传播
 
-        Args:
-            x: Input tensor [batch, seq_len, num_features]
-            mask: Optional attention mask [batch, seq_len, seq_len]
+        参数:
+            x: 输入张量 [batch, seq_len, num_features]
+            mask: 可选的注意力掩码 [batch, seq_len, seq_len]
 
-        Returns:
-            Dictionary containing all model outputs
+        返回:
+            包含所有模型输出的字典
         """
-        # Shared encoding
+        # 共享编码
         encoded = self.encoder(x, mask)  # [batch, seq_len, d_model]
 
-        # Quality prediction
+        # 质量预测
         quality_outputs = self.quality_head(encoded)
 
-        # Fault classification
+        # 故障分类
         fault_outputs = self.fault_head(encoded)
 
-        # Trajectory correction
+        # 轨迹校正
         trajectory_outputs = self.trajectory_head(encoded, mask)
 
-        # Combine all outputs
+        # 合并所有输出
         outputs = {
             'encoded': encoded,
             **quality_outputs,
@@ -106,52 +106,52 @@ class UnifiedPINNSeq3D(BaseModel):
 
     def predict_quality(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> Dict[str, torch.Tensor]:
         """
-        Predict quality metrics only
+        仅预测质量指标
 
-        Args:
-            x: Input tensor
-            mask: Optional attention mask
+        参数:
+            x: 输入张量
+            mask: 可选的注意力掩码
 
-        Returns:
-            Quality prediction outputs
+        返回:
+            质量预测输出
         """
         encoded = self.encoder(x, mask)
         return self.quality_head(encoded)
 
     def predict_fault(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> Dict[str, torch.Tensor]:
         """
-        Predict fault classification only
+        仅预测故障分类
 
-        Args:
-            x: Input tensor
-            mask: Optional attention mask
+        参数:
+            x: 输入张量
+            mask: 可选的注意力掩码
 
-        Returns:
-            Fault classification outputs
+        返回:
+            故障分类输出
         """
         encoded = self.encoder(x, mask)
         return self.fault_head(encoded)
 
     def predict_trajectory(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> Dict[str, torch.Tensor]:
         """
-        Predict trajectory correction only
+        仅预测轨迹校正
 
-        Args:
-            x: Input tensor
-            mask: Optional attention mask
+        参数:
+            x: 输入张量
+            mask: 可选的注意力掩码
 
-        Returns:
-            Trajectory correction outputs
+        返回:
+            轨迹校正输出
         """
         encoded = self.encoder(x, mask)
         return self.trajectory_head(encoded, mask)
 
     def get_model_info(self) -> Dict[str, any]:
         """
-        Get model information
+        获取模型信息
 
-        Returns:
-            Dictionary with model details
+        返回:
+            包含模型详细信息的字典
         """
         return {
             'model_type': 'UnifiedPINNSeq3D',
@@ -166,19 +166,19 @@ class UnifiedPINNSeq3D(BaseModel):
 
 class QualityPredictionOnlyModel(BaseModel):
     """
-    Quality prediction only model (no trajectory correction)
+    仅质量预测模型（无轨迹校正）
     """
 
     def __init__(self, config):
         """
-        Initialize quality prediction model
+        初始化质量预测模型
 
-        Args:
-            config: Configuration object
+        参数:
+            config: 配置对象
         """
         super().__init__(config)
 
-        # Encoder
+        # 编码器
         self.encoder = PINNTransformerEncoder(
             num_features=config.data.num_features,
             d_model=config.model.d_model,
@@ -189,7 +189,7 @@ class QualityPredictionOnlyModel(BaseModel):
             activation=config.model.activation,
         )
 
-        # Quality prediction head
+        # 质量预测头
         self.quality_head = QualityPredictionHead(
             d_model=config.model.d_model,
             hidden_dims=config.model.quality_hidden_dims,
@@ -197,7 +197,7 @@ class QualityPredictionOnlyModel(BaseModel):
             num_outputs=config.data.num_quality_outputs,
         )
 
-        # Fault classification head
+        # 故障分类头
         self.fault_head = FaultClassificationHead(
             d_model=config.model.d_model,
             hidden_dims=config.model.fault_hidden_dims,
@@ -207,14 +207,14 @@ class QualityPredictionOnlyModel(BaseModel):
 
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> Dict[str, torch.Tensor]:
         """
-        Forward pass
+        前向传播
 
-        Args:
-            x: Input tensor
-            mask: Optional attention mask
+        参数:
+            x: 输入张量
+            mask: 可选的注意力掩码
 
-        Returns:
-            Quality and fault outputs
+        返回:
+            质量和故障输出
         """
         encoded = self.encoder(x, mask)
 
@@ -230,19 +230,19 @@ class QualityPredictionOnlyModel(BaseModel):
 
 class TrajectoryCorrectionOnlyModel(BaseModel):
     """
-    Trajectory correction only model (no quality prediction)
+    仅轨迹校正模型（无质量预测）
     """
 
     def __init__(self, config):
         """
-        Initialize trajectory correction model
+        初始化轨迹校正模型
 
-        Args:
-            config: Configuration object
+        参数:
+            config: 配置对象
         """
         super().__init__(config)
 
-        # Encoder
+        # 编码器
         self.encoder = PINNTransformerEncoder(
             num_features=config.data.num_features,
             d_model=config.model.d_model,
@@ -253,7 +253,7 @@ class TrajectoryCorrectionOnlyModel(BaseModel):
             activation=config.model.activation,
         )
 
-        # Trajectory correction head
+        # 轨迹校正头
         self.trajectory_head = TrajectoryCorrectionHead(
             d_model=config.model.d_model,
             lstm_hidden=config.model.trajectory_lstm_hidden,
@@ -265,14 +265,14 @@ class TrajectoryCorrectionOnlyModel(BaseModel):
 
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> Dict[str, torch.Tensor]:
         """
-        Forward pass
+        前向传播
 
-        Args:
-            x: Input tensor
-            mask: Optional attention mask
+        参数:
+            x: 输入张量
+            mask: 可选的注意力掩码
 
-        Returns:
-            Trajectory correction outputs
+        返回:
+            轨迹校正输出
         """
         encoded = self.encoder(x, mask)
         trajectory_outputs = self.trajectory_head(encoded, mask)

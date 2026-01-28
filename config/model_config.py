@@ -1,12 +1,12 @@
 """
-Model-specific configurations and presets
+模型特定配置和预设
 """
 
 from .base_config import BaseConfig, ModelConfig, TrainingConfig, DataConfig
 
 
 def get_quality_prediction_config() -> BaseConfig:
-    """Configuration for quality prediction model only"""
+    """仅用于质量预测模型的配置"""
     config = BaseConfig()
     config.experiment_name = "quality_prediction_only"
     config.lambda_fault = 0.0
@@ -17,7 +17,7 @@ def get_quality_prediction_config() -> BaseConfig:
 
 
 def get_trajectory_correction_config() -> BaseConfig:
-    """Configuration for trajectory correction model only"""
+    """仅用于轨迹校正模型的配置"""
     config = BaseConfig()
     config.experiment_name = "trajectory_correction_only"
     config.lambda_quality = 0.0
@@ -26,13 +26,13 @@ def get_trajectory_correction_config() -> BaseConfig:
     config.lambda_physics = 0.05
     config.model.trajectory_use_lstm = True
     config.model.trajectory_bidirectional = True
-    config.data.seq_len = 10  # Shorter sequence for trajectory
+    config.data.seq_len = 10  # 轨迹的较短序列
     config.data.pred_len = 1
     return config
 
 
 def get_unified_model_config() -> BaseConfig:
-    """Configuration for unified model (all tasks)"""
+    """统一模型（所有任务）的配置"""
     config = BaseConfig()
     config.experiment_name = "unified_model_all_tasks"
     config.lambda_quality = 1.0
@@ -43,7 +43,7 @@ def get_unified_model_config() -> BaseConfig:
 
 
 def get_fast_inference_config() -> BaseConfig:
-    """Configuration for fast inference (lighter model)"""
+    """快速推理（轻量级模型）的配置"""
     config = BaseConfig()
     config.model.d_model = 128
     config.model.num_heads = 4
@@ -55,7 +55,7 @@ def get_fast_inference_config() -> BaseConfig:
 
 
 def get_research_config() -> BaseConfig:
-    """Configuration for research/development (heavier model)"""
+    """研究/开发（重量级模型）的配置"""
     config = BaseConfig()
     config.model.d_model = 512
     config.model.num_heads = 16
@@ -66,7 +66,7 @@ def get_research_config() -> BaseConfig:
     return config
 
 
-# Preset configurations dictionary
+# 预设配置字典
 MODEL_PRESETS = {
     "quality": get_quality_prediction_config,
     "trajectory": get_trajectory_correction_config,
@@ -78,14 +78,14 @@ MODEL_PRESETS = {
 
 def get_config(preset: str = "unified", **kwargs) -> BaseConfig:
     """
-    Get configuration with optional preset and custom overrides
+    获取带有可选预设和自定义覆盖的配置
 
-    Args:
-        preset: Name of the preset configuration
-        **kwargs: Custom configuration overrides
+    参数:
+        preset: 预设配置的名称
+        **kwargs: 自定义配置覆盖
 
-    Returns:
-        BaseConfig object with applied overrides
+    返回:
+        应用覆盖的BaseConfig对象
     """
     if preset in MODEL_PRESETS:
         config = MODEL_PRESETS[preset]()

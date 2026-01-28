@@ -1,15 +1,14 @@
 """
-Quality Prediction Decoder Head
+质量预测解码器头
 
-Predicts IMPLICIT QUALITY PARAMETERS that cannot be directly measured during printing:
-- Interlayer Adhesion Strength (层间粘合力)
-- Internal Stress (内应力)
-- Porosity (孔隙率)
-- Dimensional Accuracy (尺寸精度)
-- Overall Quality Score (综合质量评分)
+预测在打印过程中无法直接测量的隐含质量参数：
+- 层间粘合强度 (层间粘合力)
+- 内应力 (内应力)
+- 孔隙率 (孔隙率)
+- 尺寸精度 (尺寸精度)
+- 综合质量评分 (综合质量评分)
 
-These parameters are inferred from observable sensor data (temperature, vibration, etc.)
-using physics-informed neural networks.
+这些参数是从可观测的传感器数据（温度、振动等）中使用物理信息神经网络推断出来的。
 """
 
 import torch
@@ -18,24 +17,22 @@ import torch.nn as nn
 
 class QualityPredictionHead(nn.Module):
     """
-    Quality prediction head for inferring implicit quality parameters
+    用于推断隐含质量参数的质量预测头
 
-    This module predicts CRITICAL QUALITY METRICS that cannot be directly measured
-    during the printing process. Instead, it uses observable sensor data to infer
-    these hidden parameters through physics-informed learning.
+    该模块预测在打印过程中无法直接测量的关键质量指标。
+    相反，它使用可观测的传感器数据通过物理信息学习来推断这些隐藏参数。
 
-    Outputs (Implicit Quality Parameters):
-    - Interlayer Adhesion Strength (MPa): Bond strength between layers
-    - Internal Stress (MPa): Residual stress accumulated during printing
-    - Porosity (%): Void fraction in the printed part
-    - Dimensional Accuracy (mm): Deviation from intended dimensions
-    - Overall Quality Score [0, 1]: Composite quality indicator
+    输出（隐含质量参数）：
+    - 层间粘合强度 (MPa)：层间粘合强度
+    - 内应力 (MPa)：打印过程中累积的残余应力
+    - 孔隙率 (%)：打印件中的空隙比例
+    - 尺寸精度 (mm)：与预期尺寸的偏差
+    - 综合质量评分 [0, 1]：综合质量指标
 
-    Key Innovation:
-    - Bridges the gap between observable (temperature, vibration) and unobservable
-      (adhesion, stress) quality parameters
-    - Uses PINN to embed physical constraints relating these quantities
-    - Enables early stopping by predicting final quality from early-stage data
+    主要创新：
+    - 弥补了可观测（温度、振动）和不可观测（粘附、应力）质量参数之间的差距
+    - 使用PINN嵌入关联这些量的物理约束
+    - 通过从早期阶段数据预测最终质量来实现提前停止
     """
 
     def __init__(self,
@@ -44,20 +41,20 @@ class QualityPredictionHead(nn.Module):
                  dropout: float = 0.2,
                  num_outputs: int = 5):
         """
-        Initialize quality prediction head
+        初始化质量预测头
 
-        Args:
-            d_model: Input dimension (from encoder)
-            hidden_dims: Hidden layer dimensions
-            dropout: Dropout rate
-            num_outputs: Number of quality outputs (default: 5)
+        参数:
+            d_model: 输入维度（来自编码器）
+            hidden_dims: 隐藏层维度
+            dropout: Dropout率
+            num_outputs: 质量输出数量（默认：5）
         """
         super().__init__()
 
         self.d_model = d_model
         self.num_outputs = num_outputs
 
-        # Build MLP layers
+        # 构建MLP层
         layers = []
         input_dim = d_model
 
@@ -70,62 +67,62 @@ class QualityPredictionHead(nn.Module):
             ])
             input_dim = hidden_dim
 
-        # Output layer
+        # 输出层
         layers.append(nn.Linear(input_dim, num_outputs))
 
         self.mlp = nn.Sequential(*layers)
 
-        # Initialize output layer weights
+        # 初始化输出层权重
         nn.init.xavier_uniform_(self.mlp[-1].weight)
         nn.init.zeros_(self.mlp[-1].bias)
 
     def forward(self, encoder_output: torch.Tensor) -> dict:
         """
-        Forward pass
+        前向传播
 
-        Args:
-            encoder_output: Encoded tensor [batch, seq_len, d_model]
+        参数:
+            encoder_output: 编码张量 [batch, seq_len, d_model]
 
-        Returns:
-            Dictionary with predicted quality metrics
+        返回:
+            包含预测质量指标的字典
         """
-        # Global average pooling over sequence length
+        # 对序列长度进行全局平均池化
         pooled = encoder_output.mean(dim=1)  # [batch, d_model]
 
-        # Pass through MLP
+        # 通过MLP传递
         predictions = self.mlp(pooled)  # [batch, num_outputs]
 
-        # Split into individual outputs (IMPLICIT QUALITY PARAMETERS)
+        # 分割成各个输出（隐含质量参数）
         outputs = {
-            'adhesion_strength': predictions[:, 0:1],  # Interlayer adhesion strength (MPa)
-            'internal_stress': predictions[:, 1:2],    # Internal/residual stress (MPa)
-            'porosity': torch.sigmoid(predictions[:, 2:3]) * 100,  # Porosity (%), [0, 100]
-            'dimensional_accuracy': predictions[:, 3:4],  # Dimensional accuracy error (mm)
-            'quality_score': torch.sigmoid(predictions[:, 4:5]),  # Overall quality score [0, 1]
+            'adhesion_strength': predictions[:, 0:1],  # 层间粘合强度 (MPa)
+            'internal_stress': predictions[:, 1:2],    # 内/残余应力 (MPa)
+            'porosity': torch.sigmoid(predictions[:, 2:3]) * 100,  # 孔隙率 (%), [0, 100]
+            'dimensional_accuracy': predictions[:, 3:4],  # 尺寸精度误差 (mm)
+            'quality_score': torch.sigmoid(predictions[:, 4:5]),  # 综合质量评分 [0, 1]
         }
 
         return outputs
 
     def get_output_dim(self) -> int:
         """
-        Get total output dimension
+        获取总输出维度
 
-        Returns:
-            Number of outputs
+        返回:
+            输出数量
         """
         return self.num_outputs
 
 
 class FaultClassificationHead(nn.Module):
     """
-    Fault classification head
+    故障分类头
 
-    Outputs:
-    - Fault probabilities for 4 classes:
-        0: Normal
-        1: Nozzle Clog
-        2: Mechanical Loose
-        3: Motor Fault
+    输出:
+    - 4类故障的概率:
+        0: 正常
+        1: 喷嘴堵塞
+        2: 机械松动
+        3: 电机故障
     """
 
     def __init__(self,
@@ -134,20 +131,20 @@ class FaultClassificationHead(nn.Module):
                  dropout: float = 0.3,
                  num_classes: int = 4):
         """
-        Initialize fault classification head
+        初始化故障分类头
 
-        Args:
-            d_model: Input dimension (from encoder)
-            hidden_dims: Hidden layer dimensions
-            dropout: Dropout rate
-            num_classes: Number of fault classes
+        参数:
+            d_model: 输入维度（来自编码器）
+            hidden_dims: 隐藏层维度
+            dropout: Dropout率
+            num_classes: 故障类别数量
         """
         super().__init__()
 
         self.d_model = d_model
         self.num_classes = num_classes
 
-        # Build MLP layers
+        # 构建MLP层
         layers = []
         input_dim = d_model
 
@@ -160,35 +157,35 @@ class FaultClassificationHead(nn.Module):
             ])
             input_dim = hidden_dim
 
-        # Output layer (logits)
+        # 输出层 (logits)
         layers.append(nn.Linear(input_dim, num_classes))
 
         self.mlp = nn.Sequential(*layers)
 
-        # Initialize output layer weights
+        # 初始化输出层权重
         nn.init.xavier_uniform_(self.mlp[-1].weight)
         nn.init.zeros_(self.mlp[-1].bias)
 
     def forward(self, encoder_output: torch.Tensor) -> dict:
         """
-        Forward pass
+        前向传播
 
-        Args:
-            encoder_output: Encoded tensor [batch, seq_len, d_model]
+        参数:
+            encoder_output: 编码张量 [batch, seq_len, d_model]
 
-        Returns:
-            Dictionary with fault probabilities
+        返回:
+            包含故障概率的字典
         """
-        # Global average pooling over sequence length
+        # 对序列长度进行全局平均池化
         pooled = encoder_output.mean(dim=1)  # [batch, d_model]
 
-        # Pass through MLP to get logits
+        # 通过MLP传递得到logits
         logits = self.mlp(pooled)  # [batch, num_classes]
 
-        # Apply softmax to get probabilities
+        # 应用softmax得到概率
         probs = torch.softmax(logits, dim=-1)
 
-        # Get predicted class
+        # 获取预测类别
         preds = torch.argmax(probs, dim=-1)
 
         return {
@@ -199,9 +196,9 @@ class FaultClassificationHead(nn.Module):
 
     def get_output_dim(self) -> int:
         """
-        Get output dimension
+        获取输出维度
 
-        Returns:
-            Number of classes
+        返回:
+            类别数量
         """
         return self.num_classes

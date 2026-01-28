@@ -1,330 +1,330 @@
 function params = physics_parameters()
-% PHYSICS_PARAMETERS - Physical parameters for Ender-3 V2 FDM 3D Printer Simulation
+% PHYSICS_PARAMETERS - Ender-3 V2 FDM 3D打印机仿真物理参数
 %
-% This file contains all physical parameters needed for accurate simulation of:
-% 1. Trajectory error due to inertia and belt elasticity (second-order system)
-% 2. Thermal field and interlayer adhesion (moving heat source model)
+% 该文件包含以下方面准确仿真所需的所有物理参数：
+% 1. 由于惯性和皮带弹性引起的轨迹误差（二阶系统）
+% 2. 热场和层间粘合（移动热源模型）
 %
-% Sources:
-% - Ender-3 V2 technical specifications
-% - PLA material properties (thermal and mechanical)
-% - GT2 belt characteristics
-% - NEMA 17 42-34 stepper motor specifications
-% - FDM heat transfer coefficients from literature
+% 来源：
+% - Ender-3 V2技术规格
+% - PLA材料属性（热学和力学）
+% - GT2皮带特性
+% - NEMA 17 42-34步进电机规格
+% - 文献中的FDM传热系数
 %
-% Output: params structure with all parameters
+% 输出：包含所有参数的params结构
 
 %% ========================================================================
-% 1. PRINTER MECHANICAL PARAMETERS (Ender-3 V2)
+% 1. 打印机机械参数 (Ender-3 V2)
 % ===========================================================================
 
-% --- Moving Mass ---
-% The effective mass that moves during printing
-params.mass.extruder_assy = 0.350;      % kg - Extruder assembly (hotend + duct + mount)
-params.mass.x_carriage = 0.120;          % kg - X-carriage
-params.mass.y_belt = 0.015;             % kg - Moving belt mass (estimated)
-params.mass.total_x = 0.485;            % kg - Total moving mass in X direction
-params.mass.total_y = 0.650;            % kg - Total moving mass in Y direction (includes X)
+% --- 移动质量 ---
+% 打印期间移动的有效质量
+params.mass.extruder_assy = 0.350;      % kg - 挤出机组件（热端+风道+支架）
+params.mass.x_carriage = 0.120;          % kg - X滑车
+params.mass.y_belt = 0.015;             % kg - 移动皮带质量（估计）
+params.mass.total_x = 0.485;            % kg - X方向总移动质量
+params.mass.total_y = 0.650;            % kg - Y方向总移动质量（包括X）
 
-% --- GT2 Belt Specifications ---
-% GT2 timing belt characteristics (affects elasticity)
-params.belt.pitch = 2.0;                % mm - Tooth pitch
-params.belt.width = 6.0;                % mm - Belt width
-params.belt.length_x = 0.420;           % m - X-axis belt length
-params.belt.length_y = 0.520;           % m - Y-axis belt length
-params.belt.stiffness = 150000;         % N/m - Effective belt stiffness (experimental)
-params.belt.damping = 25.0;             % N·s/m - Belt damping coefficient
+% --- GT2皮带规格 ---
+% GT2同步带特性（影响弹性）
+params.belt.pitch = 2.0;                % mm - 齿距
+params.belt.width = 6.0;                % mm - 皮带宽度
+params.belt.length_x = 0.420;           % m - X轴皮带长度
+params.belt.length_y = 0.520;           % m - Y轴皮带长度
+params.belt.stiffness = 150000;         % N/m - 有效皮带刚度（实验得出）
+params.belt.damping = 25.0;             % N·s/m - 皮带阻尼系数
 
-% Belt stiffness calculation reference:
-% For rubber timing belt: k ≈ EA/L where E≈2GPa, A≈width*pitch
-% k ≈ (2e9 × 6e-3 × 2e-3) / 0.45 ≈ 53,000 N/m (single strand)
-% With preload and tensioning, effective stiffness is higher
-% Sources: GT2 belt specifications, mechanical engineering handbooks
+% 皮带刚度计算参考：
+% 对于橡胶同步带：k ≈ EA/L 其中 E≈2GPa, A≈width*pitch
+% k ≈ (2e9 × 6e-3 × 2e-3) / 0.45 ≈ 53,000 N/m (单股)
+% 预紧和张紧后，有效刚度更高
+% 来源：GT2皮带规格，机械工程手册
 
-% --- Stepper Motor Specifications (NEMA 17 42-34) ---
-% Used for X and Y axes
-params.motor.step_angle = 1.8;          % degrees - Step angle
-params.motor.steps_per_rev = 200;       % steps/rev
-params.motor.holding_torque = 0.40;     % N·m - Holding torque (rated)
-params.motor.current = 1.5;             % A - Rated current
-params.motor.voltage = 12.0;            % V - Supply voltage
-params.motor.inductance = 3.0;          % mH - Phase inductance
-params.motor.resistance = 1.5;          % Ohm - Phase resistance
+% --- 步进电机规格 (NEMA 17 42-34) ---
+% 用于X轴和Y轴
+params.motor.step_angle = 1.8;          % 度 - 步距角
+params.motor.steps_per_rev = 200;       % 步/转
+params.motor.holding_torque = 0.40;     % N·m - 保持扭矩（额定）
+params.motor.current = 1.5;             % A - 额定电流
+params.motor.voltage = 12.0;            % V - 供电电压
+params.motor.inductance = 3.0;          % mH - 相电感
+params.motor.resistance = 1.5;          % 欧姆 - 相电阻
 
-% Motor rotor inertia
-params.motor.rotor_inertia = 54e-6;     % kg·m² - Rotor inertia (typical for NEMA 17)
-params.motor.detent_torque = 0.02;      % N·m - Detent torque
+% 电机转子惯量
+params.motor.rotor_inertia = 54e-6;     % kg·m² - 转子惯量（NEMA 17典型值）
+params.motor.detent_torque = 0.02;      % N·m - 失步转矩
 
-% --- Transmission System ---
-% Gear reduction and pulley system
-params.pulley.teeth = 20;               % teeth - GT2 pulley
-params.pulley.diameter = 12.13;         % mm - Effective diameter (20 teeth × 2mm / π)
-params.pulley.radius = 6.065e-3;        % m - Effective radius
-params.microstepping = 16;              % - - Microstepping setting (1/16)
+% --- 传动系统 ---
+% 减速齿轮和皮带轮系统
+params.pulley.teeth = 20;               % 齿 - GT2皮带轮
+params.pulley.diameter = 12.13;         % mm - 有效直径（20齿 × 2mm / π）
+params.pulley.radius = 6.065e-3;        % m - 有效半径
+params.microstepping = 16;              % - - 细分设置（1/16）
 
-% --- Jerk and Acceleration Limits ---
-% From Marlin firmware configuration (M205, M201)
-params.motion.max_accel = 500;          % mm/s² - Maximum acceleration
-params.motion.max_accel_x = 500;        % mm/s² - X-axis max acceleration
-params.motion.max_accel_y = 500;        % mm/s² - Y-axis max acceleration
-params.motion.max_jerk = 10.0;          % mm/s - Instantaneous velocity change (jerk)
-params.motion.max_jerk_x = 8.0;         % mm/s - X-axis jerk limit
-params.motion.max_jerk_y = 8.0;         % mm/s - Y-axis jerk limit
-params.motion.max_velocity = 500;       % mm/s - Maximum velocity (from M203)
+% --- 急停和加速度限制 ---
+% 来自Marlin固件配置（M205, M201）
+params.motion.max_accel = 500;          % mm/s² - 最大加速度
+params.motion.max_accel_x = 500;        % mm/s² - X轴最大加速度
+params.motion.max_accel_y = 500;        % mm/s² - Y轴最大加速度
+params.motion.max_jerk = 10.0;          % mm/s - 瞬时速度变化（急停）
+params.motion.max_jerk_x = 8.0;         % mm/s - X轴急停限制
+params.motion.max_jerk_y = 8.0;         % mm/s - Y轴急停限制
+params.motion.max_velocity = 500;       % mm/s - 最大速度（来自M203）
 
-% --- System Dynamics Parameters ---
-% Second-order system parameters for trajectory error modeling
+% --- 系统动力学参数 ---
+% 用于轨迹误差建模的二阶系统参数
 % m·x'' + c·x' + k·x = F(t)
 
-% X-axis dynamics
-params.dynamics.x.mass = 0.485;         % kg - Effective mass
-params.dynamics.x.stiffness = 150000;   % N/m - Belt stiffness
-params.dynamics.x.damping = 25.0;       % N·s/m - Damping coefficient
+% X轴动力学
+params.dynamics.x.mass = 0.485;         % kg - 有效质量
+params.dynamics.x.stiffness = 150000;   % N/m - 皮带刚度
+params.dynamics.x.damping = 25.0;       % N·s/m - 阻尼系数
 params.dynamics.x.natural_freq = sqrt(params.dynamics.x.stiffness / params.dynamics.x.mass);  % rad/s
 params.dynamics.x.damping_ratio = params.dynamics.x.damping / (2 * sqrt(params.dynamics.x.mass * params.dynamics.x.stiffness));
 params.dynamics.x.settling_time = 4 / (params.dynamics.x.damping_ratio * params.dynamics.x.natural_freq);  % s
 
-% Y-axis dynamics
-params.dynamics.y.mass = 0.650;         % kg - Effective mass
-params.dynamics.y.stiffness = 150000;   % N/m - Belt stiffness
-params.dynamics.y.damping = 25.0;       % N·s/m - Damping coefficient
+% Y轴动力学
+params.dynamics.y.mass = 0.650;         % kg - 有效质量
+params.dynamics.y.stiffness = 150000;   % N/m - 皮带刚度
+params.dynamics.y.damping = 25.0;       % N·s/m - 阻尼系数
 params.dynamics.y.natural_freq = sqrt(params.dynamics.y.stiffness / params.dynamics.y.mass);  % rad/s
 params.dynamics.y.damping_ratio = params.dynamics.y.damping / (2 * sqrt(params.dynamics.y.mass * params.dynamics.y.stiffness));
 params.dynamics.y.settling_time = 4 / (params.dynamics.y.damping_ratio * params.dynamics.y.natural_freq);  % s
 
 %% ========================================================================
-% 2. PLA MATERIAL PROPERTIES
+% 2. PLA材料属性
 % ===========================================================================
 
-% --- Mechanical Properties ---
+% --- 机械属性 ---
 params.material.name = 'PLA';
-params.material.density = 1240;          % kg/m³ - Density (from G-code)
-params.material.elastic_modulus = 3.5e9; % Pa - Young's modulus (3.5 GPa)
-params.material.poisson_ratio = 0.36;   % - - Poisson's ratio
-params.material.yield_strength = 60e6;   % Pa - Yield strength (60 MPa)
-params.material.tensile_strength = 70e6; % Pa - Ultimate tensile strength (70 MPa)
+params.material.density = 1240;          % kg/m³ - 密度（来自G代码）
+params.material.elastic_modulus = 3.5e9; % Pa - 弹性模量（3.5 GPa）
+params.material.poisson_ratio = 0.36;   % - - 泊松比
+params.material.yield_strength = 60e6;   % Pa - 屈服强度（60 MPa）
+params.material.tensile_strength = 70e6; % Pa - 抗拉强度（70 MPa）
 
-% --- Thermal Properties ---
-% Sources: PLA technical data sheets and research papers
-params.material.thermal_conductivity = 0.13;  % W/(m·K) - Thermal conductivity
-params.material.specific_heat = 1200;         % J/(kg·K) - Specific heat capacity
+% --- 热学属性 ---
+% 来源：PLA技术数据表和研究论文
+params.material.thermal_conductivity = 0.13;  % W/(m·K) - 热导率
+params.material.specific_heat = 1200;         % J/(kg·K) - 比热容
 params.material.thermal_diffusivity = params.material.thermal_conductivity / ...
                                       (params.material.density * params.material.specific_heat);  % m²/s
 
-% PLA thermal diffusivity ≈ 0.13 / (1240 × 1200) ≈ 8.7e-8 m²/s
+% PLA热扩散率 ≈ 0.13 / (1240 × 1200) ≈ 8.7e-8 m²/s
 
-% --- Phase Transition Temperatures ---
-params.material.glass_transition = 60;   % °C - Glass transition temperature (Tg)
-params.material.melting_point = 171;     % °C - Melting temperature (Tm)
-params.material.cold_crystallization = 107;  % °C - Cold crystallization
+% --- 相变温度 ---
+params.material.glass_transition = 60;   % °C - 玻璃化转变温度（Tg）
+params.material.melting_point = 171;     % °C - 熔点（Tm）
+params.material.cold_crystallization = 107;  % °C - 冷结晶
 
-% --- Printing Temperatures ---
-params.printing.nozzle_temp = 220;       % °C - Nozzle temperature (from G-code)
-params.printing.bed_temp = 60;           % °C - Heated bed temperature (from G-code)
-params.printing.min_fan_temp = 220;      % °C - Temperature at which fan starts
-params.printing.chamber_temp = 25;       % °C - Ambient chamber temperature (typical)
+% --- 打印温度 ---
+params.printing.nozzle_temp = 220;       % °C - 喷嘴温度（来自G代码）
+params.printing.bed_temp = 60;           % °C - 热床温度（来自G代码）
+params.printing.min_fan_temp = 220;      % °C - 风扇启动温度
+params.printing.chamber_temp = 25;       % °C - 环境腔室温度（典型值）
 
-% --- Filament Specifications ---
-params.filament.diameter = 1.75;         % mm - Nominal filament diameter
-params.filament.density = 1.24;          % g/cm³ - Filament density (from G-code)
+% --- 耗材规格 ---
+params.filament.diameter = 1.75;         % mm - 标称耗材直径
+params.filament.density = 1.24;          % g/cm³ - 耗材密度（来自G代码）
 
 %% ========================================================================
-% 3. EXTRUSION AND FLOW PARAMETERS
+% 3. 挤出和流动参数
 % ===========================================================================
 
-% --- Nozzle Specifications ---
-params.nozzle.diameter = 0.4;           % mm - Nozzle diameter
-params.nozzle.material = 'Brass';       % - - Nozzle material
+% --- 喷嘴规格 ---
+params.nozzle.diameter = 0.4;           % mm - 喷嘴直径
+params.nozzle.material = 'Brass';       % - - 喷嘴材料
 
-% --- Extrusion Parameters ---
-params.extrusion.width = 0.45;          % mm - Extrusion width (from G-code)
-params.extrusion.height = 0.2;          % mm - Layer height (from G-code)
-params.extrusion.length_ratio = 1.0;    % - - Extrusion multiplier
+% --- 挤出参数 ---
+params.extrusion.width = 0.45;          % mm - 挤出宽度（来自G代码）
+params.extrusion.height = 0.2;          % mm - 层高（来自G代码）
+params.extrusion.length_ratio = 1.0;    % - - 挤出倍数
 
-% --- Extrusion Geometry ---
+% --- 挤出几何 ---
 params.extrusion.cross_section_area = params.extrusion.width * params.extrusion.height;  % mm²
-params.extrusion.volume_flow_max = 15;  % mm³/s - Maximum volumetric flow rate
+params.extrusion.volume_flow_max = 15;  % mm³/s - 最大体积流量
 
-% --- Heat Input Model ---
-% Heat input from extrusion: Q = ṁ × c × ΔT
-% where ṁ = ρ × A × v (mass flow rate)
+% --- 热输入模型 ---
+% 挤出热输入：Q = ṁ × c × ΔT
+% 其中 ṁ = ρ × A × v（质量流率）
 params.extrusion.heat_capacity_flow = params.material.density * ...
                                       params.extrusion.cross_section_area * 1e-9 * ...
                                       params.material.specific_heat;  % J/(m·K)
 
 %% ========================================================================
-% 4. THERMAL MODEL PARAMETERS (Moving Heat Source)
+% 4. 热模型参数（移动热源）
 % ===========================================================================
 
-% --- Heat Transfer Coefficients ---
-% Sources: FDM heat transfer literature, experimental measurements
-params.heat_transfer.h_convection_no_fan = 10;    % W/(m²·K) - Natural convection (no fan)
-params.heat_transfer.h_convection_with_fan = 44;  % W/(m²·K) - Forced convection (fan on)
-params.heat_transfer.h_conduction_bed = 150;      % W/(m²·K) - Contact with heated bed
-params.heat_transfer.h_radiation = 10;            % W/(m²·K) - Effective radiation (linearized)
+% --- 传热系数 ---
+% 来源：FDM传热文献，实验测量
+params.heat_transfer.h_convection_no_fan = 10;    % W/(m²·K) - 自然对流（无风扇）
+params.heat_transfer.h_convection_with_fan = 44;  % W/(m²·K) - 强制对流（风扇开启）
+params.heat_transfer.h_conduction_bed = 150;      % W/(m²·K) - 与热床接触
+params.heat_transfer.h_radiation = 10;            % W/(m²·K) - 有效辐射（线性化）
 
-% Combined heat transfer coefficient (typical printing condition)
+% 组合传热系数（典型打印条件）
 params.heat_transfer.h_combined = params.heat_transfer.h_convection_with_fan + ...
                                    params.heat_transfer.h_radiation;  % W/(m²·K)
 
-% Stefan-Boltzmann constant for radiation
-params.heat_transfer.sigma = 5.67e-8;     % W/(m²·K⁴) - Stefan-Boltzmann constant
+% 斯特藩-玻尔兹曼常数用于辐射
+params.heat_transfer.sigma = 5.67e-8;     % W/(m²·K⁴) - 斯特藩-玻尔兹曼常数
 
-% --- Emissivity ---
-params.heat_transfer.emissivity_pla = 0.92;  % - - PLA emissivity
-params.heat_transfer.emissivity_bed = 0.95;  % - - Build surface emissivity
+% --- 发射率 ---
+params.heat_transfer.emissivity_pla = 0.92;  % - - PLA发射率
+params.heat_transfer.emissivity_bed = 0.95;  % - - 打印表面发射率
 
-% --- Cooling Fan Specifications ---
-params.fan.max_speed = 255;               % - - PWM maximum value (0-255)
-params.fan.typical_speed = 255;           % - - Typical operating speed
-params.fan.diameter = 40;                 % mm - Fan diameter
-params.fan.flow_rate = 5.5;               % CFM - Air flow (typical 40mm fan)
+% --- 冷却风扇规格 ---
+params.fan.max_speed = 255;               % - - PWM最大值（0-255）
+params.fan.typical_speed = 255;           % - - 典型工作速度
+params.fan.diameter = 40;                 % mm - 风扇直径
+params.fan.flow_rate = 5.5;               % CFM - 气流（典型40mm风扇）
 
-% --- Environmental Conditions ---
-params.environment.ambient_temp = 25;     % °C - Ambient temperature
-params.environment.humidity = 50;         % % - Relative humidity (affects cooling)
-params.environment.chamber_temp = 25;     % °C - Chamber temperature (Ender-3 V2 is open-frame)
+% --- 环境条件 ---
+params.environment.ambient_temp = 25;     % °C - 环境温度
+params.environment.humidity = 50;         % % - 相对湿度（影响冷却）
+params.environment.chamber_temp = 25;     % °C - 腔室温度（Ender-3 V2是开放式结构）
 
 %% ========================================================================
-% 5. NUMERICAL SIMULATION PARAMETERS
+% 5. 数值仿真参数
 % ===========================================================================
 
-% --- Time Stepping ---
-params.simulation.time_step = 0.001;     % s - Simulation time step (1 ms)
-params.simulation.max_time = 1000;       % s - Maximum simulation time
+% --- 时间步进 ---
+params.simulation.time_step = 0.001;     % s - 仿真时间步长（1 ms）
+params.simulation.max_time = 1000;       % s - 最大仿真时间
 
-% --- Spatial Discretization (for thermal model) ---
-params.simulation.dx = 1.0;              % mm - Spatial resolution in X
-params.simulation.dy = 1.0;              % mm - Spatial resolution in Y
-params.simulation.dz = 0.1;              % mm - Spatial resolution in Z (layer resolution)
+% --- 空间离散化（用于热模型） ---
+params.simulation.dx = 1.0;              % mm - X方向空间分辨率
+params.simulation.dy = 1.0;              % mm - Y方向空间分辨率
+params.simulation.dz = 0.1;              % mm - Z方向空间分辨率（层分辨率）
 
-% --- Stability Criteria ---
-% Explicit finite difference: Δt ≤ Δx² / (4α)
+% --- 稳定性准则 ---
+% 显式有限差分：Δt ≤ Δx² / (4α)
 params.simulation.dt_stability_limit = (params.simulation.dx * 1e-3)^2 / ...
                                       (4 * params.material.thermal_diffusivity);  % s
 
-% Adaptive time step for thermal simulation
+% 用于热仿真的自适应时间步长
 params.simulation.dt_thermal = min(params.simulation.time_step, ...
                                    params.simulation.dt_stability_limit * 0.9);  % s
 
-% --- Output Configuration ---
-params.output.save_interval = 100;       % - - Save every N steps
-params.output.interpolate = true;        % - - Interpolate to uniform time grid
+% --- 输出配置 ---
+params.output.save_interval = 100;       % - - 每N步保存一次
+params.output.interpolate = true;        % - - 插值到均匀时间网格
 
 %% ========================================================================
-% 6. INTERLAYER ADHESION MODEL PARAMETERS
+% 6. 层间粘合模型参数
 % ===========================================================================
 
-% Wool-O'Connor Polymer Healing Model
-% Sources: Research on FDM interlayer bonding
+% Wool-O'Connor聚合物愈合模型
+% 来源：关于FDM层间结合的研究
 %
-% Healing model: H = H∞ × exp(-Ea/RT) × t^n
-% where:
-%   H - Healing ratio (bond strength development)
-%   H∞ - Maximum healing
-%   Ea - Activation energy
-%   R - Gas constant
-%   T - Temperature (K)
-%   t - Time
-%   n - Time exponent
+% 愈合模型：H = H∞ × exp(-Ea/RT) × t^n
+% 其中：
+%   H - 愈合比（结合强度发展）
+%   H∞ - 最大愈合
+%   Ea - 活化能
+%   R - 气体常数
+%   T - 温度（K）
+%   t - 时间
+%   n - 时间指数
 
-params.adhesion.activation_energy = 50e3;    % J/mol - Activation energy for PLA diffusion
-params.adhesion.gas_constant = 8.314;        % J/(mol·K) - Universal gas constant
-params.adhesion.time_exponent = 0.5;         % - - Typically 0.5 for Fickian diffusion
-params.adhesion.max_healing = 1.0;           % - - Maximum healing ratio
-params.adhesion.reference_temp = 220;        % °C - Reference temperature
+params.adhesion.activation_energy = 50e3;    % J/mol - PLA扩散活化能
+params.adhesion.gas_constant = 8.314;        % J/(mol·K) - 通用气体常数
+params.adhesion.time_exponent = 0.5;         % - - 菲克扩散通常为0.5
+params.adhesion.max_healing = 1.0;           % - - 最大愈合比
+params.adhesion.reference_temp = 220;        % °C - 参考温度
 
-% Simplified adhesion strength model (temperature-dependent)
+% 简化的粘合强度模型（温度相关）
 % σ_adhesion = σ_bulk × [1 - exp(-t/τ(T))]
-% where τ(T) = τ₀ × exp(Ea/RT)
+% 其中 τ(T) = τ₀ × exp(Ea/RT)
 
-params.adhesion.bulk_strength = 70e6;        % Pa - Bulk material strength
-params.adhesion.pre_exponential = 1e-3;      % s - Pre-exponential factor
+params.adhesion.bulk_strength = 70e6;        % Pa - 块状材料强度
+params.adhesion.pre_exponential = 1e-3;      % s - 指前因子
 
-% Critical temperature for molecular diffusion
+% 分子扩散的临界温度
 params.adhesion.min_diffusion_temp = params.material.glass_transition + 10;  % °C
 params.adhesion.optimal_temp = params.material.melting_point - 20;  % °C
 
-% --- Healing Time Threshold ---
-params.adhesion.min_healing_time = 0.5;      % s - Minimum time for any bonding
-params.adhesion.optimal_healing_time = 2.0;  % s - Optimal time for maximum strength
+% --- 愈合时间阈值 ---
+params.adhesion.min_healing_time = 0.5;      % s - 任何结合的最小时间
+params.adhesion.optimal_healing_time = 2.0;  % s - 最大强度的最佳时间
 
 %% ========================================================================
-% 7. G-CODE PROCESSING PARAMETERS
+% 7. G代码处理参数
 % ===========================================================================
 
-% G-code parsing configuration
-params.gcode.coordinate_system = 'absolute';  % - - G90 (absolute) or G91 (relative)
-params.gcode.extrusion_mode = 'relative';     % - - E values (typically relative)
+% G代码解析配置
+params.gcode.coordinate_system = 'absolute';  % - - G90（绝对）或G91（相对）
+params.gcode.extrusion_mode = 'relative';     % - - E值（通常为相对）
 
-% Corner detection parameters
-params.gcode.corner_angle_threshold = 15;     % degrees - Minimum angle to detect corner
-params.gcode.min_segment_length = 0.1;        % mm - Minimum segment to process
+% 角点检测参数
+params.gcode.corner_angle_threshold = 15;     % 度 - 检测角点的最小角度
+params.gcode.min_segment_length = 0.1;        % mm - 要处理的最小段长
 
-% Travel vs extrusion classification
-params.gcode.extrusion_threshold = 0.01;     % mm - Minimum E change to be extrusion
+% 行走vs挤出分类
+params.gcode.extrusion_threshold = 0.01;     % mm - 成为挤出的最小E变化
 
 %% ========================================================================
-% 8. DIAGNOSTIC AND DEBUG PARAMETERS
+% 8. 诊断和调试参数
 % ===========================================================================
 
-params.debug.plot_trajectory = false;        % - - Plot reference vs actual trajectory
-params.debug.plot_temperature = false;       % - - Plot temperature field evolution
-params.debug.plot_forces = false;            % - - Plot inertial and elastic forces
-params.debug.verbose = false;                % - - Print progress messages (also controls plot generation)
+params.debug.plot_trajectory = false;        % - - 绘制参考vs实际轨迹
+params.debug.plot_temperature = false;       % - - 绘制温度场演变
+params.debug.plot_forces = false;            % - - 绘制惯性力和弹性力
+params.debug.verbose = false;                % - - 打印进度消息（也控制绘图生成）
 
-params.debug.save_intermediate = false;      % - - Save intermediate results
-params.debug.check_stability = true;         % - - Check numerical stability
+params.debug.save_intermediate = false;      % - - 保存中间结果
+params.debug.check_stability = true;         % - - 检查数值稳定性
 
 %% ========================================================================
-% 9. VALIDATION AND REFERENCE DATA
+% 9. 验证和参考数据
 % ===========================================================================
 
-% Experimental validation data (from literature)
-% Sources: Research papers on Ender-3 V2 performance
+% 实验验证数据（来自文献）
+% 来源：关于Ender-3 V2性能的研究论文
 
-params.validation.typical_corner_error = 0.3;  % mm - Typical corner rounding error
-params.validation.resonance_freq_x = 45;       % Hz - X-axis resonance frequency
-params.validation.resonance_freq_y = 35;       % Hz - Y-axis resonance frequency
+params.validation.typical_corner_error = 0.3;  % mm - 典型角点圆化误差
+params.validation.resonance_freq_x = 45;       % Hz - X轴共振频率
+params.validation.resonance_freq_y = 35;       % Hz - Y轴共振频率
 
-% Print quality metrics
-params.quality.max_allowable_error = 0.5;     % mm - Maximum acceptable dimensional error
-params.quality.min_adhesion_ratio = 0.7;       % - - Minimum interlayer strength ratio
+% 打印质量指标
+params.quality.max_allowable_error = 0.5;     % mm - 最大可接受尺寸误差
+params.quality.min_adhesion_ratio = 0.7;       % - - 最小层间强度比
 
 %% ========================================================================
-% END OF PARAMETER DEFINITION
+% 参数定义结束
 % ===========================================================================
 
-% Display summary if verbose
+% 如果详细模式显示摘要
 if params.debug.verbose
     fprintf('========================================\n');
-    fprintf('Physics Parameters Loaded Successfully\n');
+    fprintf('物理参数加载成功\n');
     fprintf('========================================\n');
-    fprintf('Printer: Ender-3 V2\n');
-    fprintf('Material: %s\n', params.material.name);
+    fprintf('打印机：Ender-3 V2\n');
+    fprintf('材料：%s\n', params.material.name);
     fprintf('\n');
-    fprintf('X-axis Dynamics:\n');
-    fprintf('  Mass: %.3f kg\n', params.dynamics.x.mass);
-    fprintf('  Natural freq: %.2f rad/s (%.2f Hz)\n', ...
+    fprintf('X轴动力学：\n');
+    fprintf('  质量：%.3f kg\n', params.dynamics.x.mass);
+    fprintf('  固有频率：%.2f rad/s (%.2f Hz)\n', ...
             params.dynamics.x.natural_freq, ...
             params.dynamics.x.natural_freq / (2*pi));
-    fprintf('  Damping ratio: %.4f\n', params.dynamics.x.damping_ratio);
+    fprintf('  阻尼比：%.4f\n', params.dynamics.x.damping_ratio);
     fprintf('\n');
-    fprintf('Y-axis Dynamics:\n');
-    fprintf('  Mass: %.3f kg\n', params.dynamics.y.mass);
-    fprintf('  Natural freq: %.2f rad/s (%.2f Hz)\n', ...
+    fprintf('Y轴动力学：\n');
+    fprintf('  质量：%.3f kg\n', params.dynamics.y.mass);
+    fprintf('  固有频率：%.2f rad/s (%.2f Hz)\n', ...
             params.dynamics.y.natural_freq, ...
             params.dynamics.y.natural_freq / (2*pi));
-    fprintf('  Damping ratio: %.4f\n', params.dynamics.y.damping_ratio);
+    fprintf('  阻尼比：%.4f\n', params.dynamics.y.damping_ratio);
     fprintf('\n');
-    fprintf('Thermal Properties:\n');
-    fprintf('  Conductivity: %.2f W/(m·K)\n', params.material.thermal_conductivity);
-    fprintf('  Specific heat: %.0f J/(kg·K)\n', params.material.specific_heat);
-    fprintf('  Diffusivity: %.2e m²/s\n', params.material.thermal_diffusivity);
+    fprintf('热学属性：\n');
+    fprintf('  热导率：%.2f W/(m·K)\n', params.material.thermal_conductivity);
+    fprintf('  比热容：%.0f J/(kg·K)\n', params.material.specific_heat);
+    fprintf('  扩散率：%.2e m²/s\n', params.material.thermal_diffusivity);
     fprintf('\n');
-    fprintf('Heat Transfer:\n');
-    fprintf('  Convection (fan): %d W/(m²·K)\n', params.heat_transfer.h_convection_with_fan);
-    fprintf('  Convection (no fan): %d W/(m²·K)\n', params.heat_transfer.h_convection_no_fan);
+    fprintf('传热：\n');
+    fprintf('  对流（风扇）：%d W/(m²·K)\n', params.heat_transfer.h_convection_with_fan);
+    fprintf('  对流（无风扇）：%d W/(m²·K)\n', params.heat_transfer.h_convection_no_fan);
     fprintf('========================================\n');
 end
 

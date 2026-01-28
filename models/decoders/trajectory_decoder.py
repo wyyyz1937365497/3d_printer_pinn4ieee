@@ -1,201 +1,149 @@
 """
-Trajectory Correction Decoder Head
+Trajectory Error Correction Decoder Head
 
-Predicts displacement corrections for 3D printing trajectories
-Combines BiLSTM with attention mechanism for sequence-based correction
+Predicts EXPLICIT TRAJECTORY ERRORS that can be corrected in real-time:
+- X-axis deviation (X轴偏差)
+- Y-axis deviation (Y轴偏差)
+
+These corrections are applied to the commanded trajectory to compensate
+for mechanical inaccuracies and dynamic effects during printing.
 """
 
 import torch
 import torch.nn as nn
-import math
-
-
-class MultiHeadAttention(nn.Module):
-    """
-    Multi-head attention mechanism for trajectory correction
-    """
-
-    def __init__(self, d_model: int, num_heads: int = 8, dropout: float = 0.1):
-        """
-        Initialize multi-head attention
-
-        Args:
-            d_model: Model dimension
-            num_heads: Number of attention heads
-            dropout: Dropout rate
-        """
-        super().__init__()
-        assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
-
-        self.d_model = d_model
-        self.num_heads = num_heads
-        self.head_dim = d_model // num_heads
-
-        self.q_linear = nn.Linear(d_model, d_model)
-        self.k_linear = nn.Linear(d_model, d_model)
-        self.v_linear = nn.Linear(d_model, d_model)
-
-        self.out_linear = nn.Linear(d_model, d_model)
-        self.dropout = nn.Dropout(dropout)
-
-    def forward(self, query: torch.Tensor, key: torch.Tensor,
-                value: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
-        """
-        Forward pass
-
-        Args:
-            query: Query tensor [batch, seq_len_q, d_model]
-            key: Key tensor [batch, seq_len_k, d_model]
-            value: Value tensor [batch, seq_len_v, d_model]
-            mask: Optional attention mask
-
-        Returns:
-            Attention output [batch, seq_len_q, d_model]
-        """
-        batch_size = query.size(0)
-
-        # Linear projections and reshape
-        Q = self.q_linear(query).view(batch_size, -1, self.num_heads, self.head_dim).transpose(1, 2)
-        K = self.k_linear(key).view(batch_size, -1, self.num_heads, self.head_dim).transpose(1, 2)
-        V = self.v_linear(value).view(batch_size, -1, self.num_heads, self.head_dim).transpose(1, 2)
-
-        # Scaled dot-product attention
-        scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.head_dim)
-
-        if mask is not None:
-            scores = scores.masked_fill(mask == 0, -1e9)
-
-        attn_weights = torch.softmax(scores, dim=-1)
-        attn_weights = self.dropout(attn_weights)
-
-        attn_output = torch.matmul(attn_weights, V)
-
-        # Concatenate heads and project
-        attn_output = attn_output.transpose(1, 2).contiguous().view(batch_size, -1, self.d_model)
-        output = self.out_linear(attn_output)
-
-        return output
 
 
 class TrajectoryCorrectionHead(nn.Module):
     """
-    Trajectory correction head with BiLSTM and attention
-
-    Outputs:
-    - X displacement correction (dx)
-    - Y displacement correction (dy)
-    - Z displacement correction (dz)
+    Trajectory correction head for predicting spatial deviations
+    
+    This module predicts real-time trajectory corrections needed to compensate
+    for mechanical inaccuracies, resonance effects, and dynamic disturbances
+    during 3D printing. Unlike quality prediction (implicit parameters), 
+    trajectory errors are explicit geometric deviations that can be directly 
+    corrected by adjusting the commanded positions.
+    
+    Outputs (Trajectory Corrections):
+    - error_x: Deviation in X direction (mm)
+    - error_y: Deviation in Y direction (mm)
+    
+    Key Features:
+    - Processes sequential trajectory data to capture temporal dependencies
+    - Uses LSTM for modeling dynamic system response
+    - Includes attention mechanism for focusing on critical time steps
+    - Handles variable-length sequences for real-time applications
     """
 
-    def __init__(self,
+    def __init__(self, 
                  d_model: int,
                  lstm_hidden: int = 128,
                  lstm_layers: int = 2,
                  bidirectional: bool = True,
                  use_attention: bool = True,
-                 num_attention_heads: int = 8,
-                 dropout: float = 0.1,
-                 num_outputs: int = 3):
+                 num_outputs: int = 2):
         """
         Initialize trajectory correction head
-
+        
         Args:
             d_model: Input dimension (from encoder)
-            lstm_hidden: LSTM hidden dimension
+            lstm_hidden: LSTM hidden size
             lstm_layers: Number of LSTM layers
-            bidirectional: Use bidirectional LSTM
-            use_attention: Use attention mechanism
-            num_attention_heads: Number of attention heads
-            dropout: Dropout rate
-            num_outputs: Number of correction outputs (default: 3 for dx, dy, dz)
+            bidirectional: Whether to use bidirectional LSTM
+            use_attention: Whether to use attention mechanism
+            num_outputs: Number of trajectory outputs (default: 2 for x, y)
         """
         super().__init__()
-
+        
         self.d_model = d_model
         self.lstm_hidden = lstm_hidden
         self.lstm_layers = lstm_layers
         self.bidirectional = bidirectional
         self.use_attention = use_attention
         self.num_outputs = num_outputs
-
-        # LSTM layer
+        
+        # LSTM for sequence modeling
         self.lstm = nn.LSTM(
             input_size=d_model,
             hidden_size=lstm_hidden,
             num_layers=lstm_layers,
             batch_first=True,
             bidirectional=bidirectional,
-            dropout=dropout if lstm_layers > 1 else 0.0
+            dropout=0.1 if lstm_layers > 1 else 0
         )
-
-        # Compute LSTM output dimension
-        lstm_output_dim = lstm_hidden * (2 if bidirectional else 1)
-
-        # Optional attention layer
+        
+        # Attention mechanism if enabled
         if use_attention:
-            self.attention = MultiHeadAttention(
-                d_model=lstm_output_dim,
-                num_heads=num_attention_heads,
-                dropout=dropout
+            self.attention = nn.MultiheadAttention(
+                embed_dim=lstm_hidden * (2 if bidirectional else 1),
+                num_heads=8,
+                batch_first=True
             )
-            attention_dim = lstm_output_dim
-        else:
-            self.attention = None
-            attention_dim = lstm_output_dim
-
-        # Output projection layers
-        self.fc_layers = nn.Sequential(
-            nn.Linear(attention_dim, lstm_hidden),
-            nn.LayerNorm(lstm_hidden),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(lstm_hidden, num_outputs)
-        )
-
+            self.attn_norm = nn.LayerNorm(lstm_hidden * (2 if bidirectional else 1))
+        
+        # Output projection
+        lstm_output_dim = lstm_hidden * (2 if bidirectional else 1)
+        self.output_proj = nn.Linear(lstm_output_dim, num_outputs)
+        
         # Initialize output layer weights
-        nn.init.xavier_uniform_(self.fc_layers[-1].weight)
-        nn.init.zeros_(self.fc_layers[-1].bias)
+        nn.init.xavier_uniform_(self.output_proj.weight)
+        nn.init.zeros_(self.output_proj.bias)
 
-    def forward(self, encoder_output: torch.Tensor, mask: torch.Tensor = None) -> dict:
+    def forward(self, encoder_output: torch.Tensor, mask=None) -> dict:
         """
         Forward pass
-
+        
         Args:
             encoder_output: Encoded tensor [batch, seq_len, d_model]
-            mask: Optional attention mask
-
+            mask: Attention mask [batch, seq_len] or [batch, seq_len, seq_len]
+            
         Returns:
-            Dictionary with trajectory corrections
+            Dictionary with trajectory correction predictions
         """
+        batch_size, seq_len, _ = encoder_output.shape
+        
         # Pass through LSTM
-        lstm_output, _ = self.lstm(encoder_output)  # [batch, seq_len, lstm_output_dim]
-
+        lstm_out, _ = self.lstm(encoder_output)  # [batch, seq_len, lstm_hidden*directions]
+        
         # Apply attention if enabled
         if self.use_attention:
-            # Self-attention on LSTM output
-            attended_output = self.attention(lstm_output, lstm_output, lstm_output, mask)
-        else:
-            attended_output = lstm_output
-
-        # Use last timestep output for prediction
-        last_output = attended_output[:, -1, :]  # [batch, attention_dim]
-
-        # Project to output dimension
-        corrections = self.fc_layers(last_output)  # [batch, num_outputs]
-
-        # Split into individual corrections
+            # Self-attention on LSTM outputs
+            attn_out, attn_weights = self.attention(
+                lstm_out, lstm_out, lstm_out,
+                attn_mask=self._create_causal_mask(seq_len, encoder_output.device) if mask is None else mask
+            )
+            # Add & Norm
+            lstm_out = self.attn_norm(attn_out + lstm_out)
+        
+        # Average over sequence dimension to get fixed-size representation
+        # This allows handling variable-length sequences
+        seq_axis = 1
+        pooled_output = lstm_out.mean(dim=seq_axis)  # [batch, lstm_hidden*directions]
+        
+        # Project to output space
+        corrections = self.output_proj(pooled_output)  # [batch, num_outputs]
+        
+        # Split into individual outputs (TRAJECTORY CORRECTIONS)
         outputs = {
-            'displacement_x': corrections[:, 0:1],  # X correction
-            'displacement_y': corrections[:, 1:2],  # Y correction
-            'displacement_z': corrections[:, 2:3],  # Z correction
+            'error_x': corrections[:, 0:1],  # X-axis deviation (mm)
+            'error_y': corrections[:, 1:2],  # Y-axis deviation (mm)
         }
-
+        
+        # Add attention weights if attention is used (for visualization)
+        if self.use_attention:
+            outputs['attn_weights'] = attn_weights
+            
         return outputs
+
+    def _create_causal_mask(self, seq_len, device):
+        """Create causal mask for attention mechanism"""
+        mask = torch.triu(torch.ones(seq_len, seq_len, device=device), diagonal=1)
+        mask = mask.masked_fill(mask == 1, float('-inf'))
+        return mask
 
     def get_output_dim(self) -> int:
         """
         Get output dimension
-
+        
         Returns:
             Number of outputs
         """

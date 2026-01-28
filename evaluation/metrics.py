@@ -1,5 +1,5 @@
 """
-Evaluation metrics for model performance assessment
+用于模型性能评估的评估指标
 """
 
 import numpy as np
@@ -14,7 +14,7 @@ from sklearn.metrics import (
 
 class RegressionMetrics:
     """
-    Regression metrics for quality prediction and trajectory correction
+    用于质量预测和轨迹校正的回归指标
     """
 
     @staticmethod
@@ -22,17 +22,17 @@ class RegressionMetrics:
                 targets: np.ndarray,
                 prefix: str = '') -> Dict[str, float]:
         """
-        Compute regression metrics
+        计算回归指标
 
-        Args:
-            predictions: Predicted values [n_samples] or [n_samples, 1]
-            targets: Ground truth values [n_samples] or [n_samples, 1]
-            prefix: Prefix for metric names
+        参数:
+            predictions: 预测值 [n_samples] 或 [n_samples, 1]
+            targets: 真实值 [n_samples] 或 [n_samples, 1]
+            prefix: 指标名称前缀
 
-        Returns:
-            Dictionary with metric names and values
+        返回:
+            包含指标名称和值的字典
         """
-        # Flatten if needed
+        # 如需要则展平
         if predictions.ndim > 1:
             predictions = predictions.flatten()
         if targets.ndim > 1:
@@ -43,7 +43,7 @@ class RegressionMetrics:
         mae = mean_absolute_error(targets, predictions)
         r2 = r2_score(targets, predictions)
 
-        # Mean Absolute Percentage Error (MAPE)
+        # 平均绝对百分比误差 (MAPE)
         mask = np.abs(targets) > 1e-6
         if mask.sum() > 0:
             mape = np.mean(np.abs((targets[mask] - predictions[mask]) / targets[mask])) * 100
@@ -65,17 +65,17 @@ class RegressionMetrics:
                             targets: np.ndarray,
                             prefix: str = '') -> Dict[str, float]:
         """
-        Compute metrics for sequence predictions
+        计算序列预测的指标
 
-        Args:
-            predictions: Predicted sequences [n_samples, seq_len, n_dims]
-            targets: Target sequences [n_samples, seq_len, n_dims]
-            prefix: Prefix for metric names
+        参数:
+            predictions: 预测序列 [n_samples, seq_len, n_dims]
+            targets: 目标序列 [n_samples, seq_len, n_dims]
+            prefix: 指标名称前缀
 
-        Returns:
-            Dictionary with metric names and values
+        返回:
+            包含指标名称和值的字典
         """
-        # Compute metrics for each dimension
+        # 为每个维度计算指标
         n_dims = predictions.shape[-1]
         all_metrics = {}
 
@@ -87,7 +87,7 @@ class RegressionMetrics:
             )
             all_metrics.update(dim_metrics)
 
-        # Compute average metrics across all dimensions
+        # 计算所有维度的平均指标
         avg_metrics = RegressionMetrics.compute(
                 predictions.flatten(),
                 targets.flatten(),
@@ -100,7 +100,7 @@ class RegressionMetrics:
 
 class ClassificationMetrics:
     """
-    Classification metrics for fault detection
+    用于故障检测的分类指标
     """
 
     @staticmethod
@@ -109,26 +109,26 @@ class ClassificationMetrics:
                 num_classes: int = 4,
                 prefix: str = '') -> Dict[str, float]:
         """
-        Compute classification metrics
+        计算分类指标
 
-        Args:
-            predictions: Predicted class labels [n_samples]
-            targets: Ground truth class labels [n_samples]
-            num_classes: Number of classes
-            prefix: Prefix for metric names
+        参数:
+            predictions: 预测类别标签 [n_samples]
+            targets: 真实类别标签 [n_samples]
+            num_classes: 类别数量
+            prefix: 指标名称前缀
 
-        Returns:
-            Dictionary with metric names and values
+        返回:
+            包含指标名称和值的字典
         """
-        # Accuracy
+        # 准确率
         accuracy = accuracy_score(targets, predictions)
 
-        # Precision, Recall, F1
+        # 精确率、召回率、F1
         precision, recall, f1, support = precision_recall_fscore_support(
             targets, predictions, average='weighted', zero_division=0
         )
 
-        # Per-class metrics
+        # 每类指标
         precision_per_class, recall_per_class, f1_per_class, _ = precision_recall_fscore_support(
             targets, predictions, average=None, zero_division=0
         )
@@ -140,7 +140,7 @@ class ClassificationMetrics:
             f'{prefix}f1': float(f1),
         }
 
-        # Add per-class metrics
+        # 添加每类指标
         for i in range(min(num_classes, len(precision_per_class))):
             metrics[f'{prefix}class{i}_precision'] = float(precision_per_class[i])
             metrics[f'{prefix}class{i}_recall'] = float(recall_per_class[i])
@@ -153,15 +153,15 @@ class ClassificationMetrics:
                                 targets: np.ndarray,
                                 num_classes: int = 4) -> np.ndarray:
         """
-        Compute confusion matrix
+        计算混淆矩阵
 
-        Args:
-            predictions: Predicted class labels [n_samples]
-            targets: Ground truth class labels [n_samples]
-            num_classes: Number of classes
+        参数:
+            predictions: 预测类别标签 [n_samples]
+            targets: 真实类别标签 [n_samples]
+            num_classes: 类别数量
 
-        Returns:
-            Confusion matrix [num_classes, num_classes]
+        返回:
+            混淆矩阵 [num_classes, num_classes]
         """
         cm = confusion_matrix(targets, predictions, labels=list(range(num_classes)))
         return cm
@@ -171,34 +171,34 @@ class ClassificationMetrics:
                                   targets: np.ndarray,
                                   prefix: str = '') -> Dict[str, float]:
         """
-        Compute classification metrics with probability predictions
+        使用概率预测计算分类指标
 
-        Args:
-            predictions_prob: Predicted class probabilities [n_samples, num_classes]
-            targets: Ground truth class labels [n_samples]
-            prefix: Prefix for metric names
+        参数:
+            predictions_prob: 预测类别概率 [n_samples, num_classes]
+            targets: 真实类别标签 [n_samples]
+            prefix: 指标名称前缀
 
-        Returns:
-            Dictionary with metric names and values
+        返回:
+            包含指标名称和值的字典
         """
-        # Get predicted classes
+        # 获取预测类别
         predictions = np.argmax(predictions_prob, axis=1)
 
-        # Compute standard metrics
+        # 计算标准指标
         metrics = ClassificationMetrics.compute(predictions, targets, prefix=prefix)
 
-        # Compute AUC (one-vs-rest)
+        # 计算AUC (一对多)
         try:
             num_classes = predictions_prob.shape[1]
             if num_classes == 2:
                 auc = roc_auc_score(targets, predictions_prob[:, 1])
                 metrics[f'{prefix}auc'] = float(auc)
             else:
-                # Multi-class AUC (one-vs-rest)
+                # 多类别AUC (一对多)
                 auc = roc_auc_score(targets, predictions_prob, multi_class='ovr', average='weighted')
                 metrics[f'{prefix}auc'] = float(auc)
         except Exception as e:
-            # AUC may fail if only one class is present
+            # 如果只存在一个类别，AUC可能会失败
             pass
 
         return metrics
@@ -206,7 +206,7 @@ class ClassificationMetrics:
 
 class TrajectoryMetrics:
     """
-    Specialized metrics for trajectory correction
+    专门用于轨迹校正的指标
     """
 
     @staticmethod
@@ -214,20 +214,20 @@ class TrajectoryMetrics:
                                   target_displacement: np.ndarray,
                                   prefix: str = '') -> Dict[str, float]:
         """
-        Compute displacement error metrics
+        计算位移误差指标
 
-        Args:
-            predicted_displacement: Predicted displacement [n_samples, 3] (dx, dy, dz)
-            target_displacement: Target displacement [n_samples, 3]
-            prefix: Prefix for metric names
+        参数:
+            predicted_displacement: 预定位移 [n_samples, 3] (dx, dy, dz)
+            target_displacement: 目标位移 [n_samples, 3]
+            prefix: 指标名称前缀
 
-        Returns:
-            Dictionary with metric names and values
+        返回:
+            包含指标名称和值的字典
         """
-        # Compute error for each axis
+        # 计算每个轴的误差
         errors = predicted_displacement - target_displacement
 
-        # Magnitude of error
+        # 误差大小
         error_magnitude = np.linalg.norm(errors, axis=1)
 
         metrics = {
@@ -237,7 +237,7 @@ class TrajectoryMetrics:
             f'{prefix}error_magnitude_median': float(np.median(error_magnitude)),
         }
 
-        # Per-axis metrics
+        # 每轴指标
         for i, axis in enumerate(['x', 'y', 'z']):
             axis_error = errors[:, i]
             metrics[f'{prefix}error_{axis}_mean'] = float(np.mean(np.abs(axis_error)))
@@ -249,25 +249,25 @@ class TrajectoryMetrics:
     def compute_improvement_ratio(original_error: np.ndarray,
                                  corrected_error: np.ndarray) -> Dict[str, float]:
         """
-        Compute improvement ratio after trajectory correction
+        计算轨迹校正后的改进比率
 
-        Args:
-            original_error: Error before correction [n_samples]
-            corrected_error: Error after correction [n_samples]
+        参数:
+            original_error: 校正前的误差 [n_samples]
+            corrected_error: 校正后的误差 [n_samples]
 
-        Returns:
-            Dictionary with improvement metrics
+        返回:
+            包含改进指标的字典
         """
         original_magnitude = np.linalg.norm(original_error, axis=1) if original_error.ndim > 1 else np.abs(original_error)
         corrected_magnitude = np.linalg.norm(corrected_error, axis=1) if corrected_error.ndim > 1 else np.abs(corrected_error)
 
-        # Improvement ratio
+        # 改进比率
         improvement = (original_magnitude - corrected_magnitude) / (original_magnitude + 1e-6)
 
-        # Percentage improvement
+        # 百分比改进
         improvement_percentage = improvement * 100
 
-        # Samples that improved
+        # 改进的样本
         improved_samples = (improvement > 0).sum()
         total_samples = len(improvement)
 
@@ -285,7 +285,7 @@ class TrajectoryMetrics:
 
 class QualityMetrics:
     """
-    Specialized metrics for quality prediction
+    专门用于质量预测的指标
     """
 
     @staticmethod
@@ -294,21 +294,21 @@ class QualityMetrics:
                            threshold: float = 100.0,
                            prefix: str = 'rul_') -> Dict[str, float]:
         """
-        Compute RUL-specific metrics
+        计算RUL专用指标
 
-        Args:
-            predictions: Predicted RUL values [n_samples]
-            targets: Ground truth RUL values [n_samples]
-            threshold: Threshold for early warning (seconds)
-            prefix: Prefix for metric names
+        参数:
+            predictions: 预测的RUL值 [n_samples]
+            targets: 真实的RUL值 [n_samples]
+            threshold: 早期警告阈值（秒）
+            prefix: 指标名称前缀
 
-        Returns:
-            Dictionary with RUL metrics
+        返回:
+            包含RUL指标的字典
         """
-        # Standard regression metrics
+        # 标准回归指标
         metrics = RegressionMetrics.compute(predictions, targets, prefix=prefix)
 
-        # Early warning accuracy
+        # 早期警告准确率
         pred_warning = predictions < threshold
         true_warning = targets < threshold
 
@@ -324,28 +324,28 @@ class QualityMetrics:
                                      threshold: float = 0.5,
                                      prefix: str = 'quality_') -> Dict[str, float]:
         """
-        Compute quality score-specific metrics
+        计算质量分数专用指标
 
-        Args:
-            predictions: Predicted quality scores [n_samples]
-            targets: Ground truth quality scores [n_samples]
-            threshold: Threshold for good quality
-            prefix: Prefix for metric names
+        参数:
+            predictions: 预测质量分数 [n_samples]
+            targets: 真实质量分数 [n_samples]
+            threshold: 良好质量阈值
+            prefix: 指标名称前缀
 
-        Returns:
-            Dictionary with quality score metrics
+        返回:
+            包含质量分数指标的字典
         """
-        # Standard regression metrics
+        # 标准回归指标
         metrics = RegressionMetrics.compute(predictions, targets, prefix=prefix)
 
-        # Binary classification based on threshold
+        # 基于阈值的二分类
         pred_good = predictions > threshold
         true_good = targets > threshold
 
-        # Accuracy
+        # 准确率
         accuracy = accuracy_score(true_good, pred_good)
 
-        # Precision, Recall, F1
+        # 精确率、召回率、F1
         precision, recall, f1, _ = precision_recall_fscore_support(
             true_good, pred_good, average='binary', zero_division=0
         )
@@ -360,7 +360,7 @@ class QualityMetrics:
 
 class UnifiedMetrics:
     """
-    Unified metrics computation for all tasks
+    用于所有任务的统一指标计算
     """
 
     @staticmethod
@@ -368,19 +368,19 @@ class UnifiedMetrics:
                    targets: Dict[str, np.ndarray],
                    num_fault_classes: int = 4) -> Dict[str, float]:
         """
-        Compute metrics for all tasks
+        计算所有任务的指标
 
-        Args:
-            predictions: Dictionary of predictions
-            targets: Dictionary of targets
-            num_fault_classes: Number of fault classes
+        参数:
+            predictions: 预测字典
+            targets: 目标字典
+            num_fault_classes: 故障类别数量
 
-        Returns:
-            Dictionary with all metrics
+        返回:
+            包含所有指标的字典
         """
         all_metrics = {}
 
-        # Quality prediction metrics
+        # 质量预测指标
         if 'rul' in predictions and 'rul' in targets:
             rul_metrics = QualityMetrics.compute_rul_metrics(
                 predictions['rul'], targets['rul']
@@ -414,7 +414,7 @@ class UnifiedMetrics:
             )
             all_metrics.update(quality_metrics)
 
-        # Fault classification metrics
+        # 故障分类指标
         if 'fault_pred' in predictions and 'fault_label' in targets:
             fault_metrics = ClassificationMetrics.compute(
                 predictions['fault_pred'],
@@ -424,7 +424,7 @@ class UnifiedMetrics:
             )
             all_metrics.update(fault_metrics)
 
-        # Trajectory correction metrics
+        # 轨迹校正指标
         if ('displacement_x' in predictions and 'displacement_x' in targets and
             'displacement_y' in predictions and 'displacement_y' in targets and
             'displacement_z' in predictions and 'displacement_z' in targets):
@@ -452,18 +452,18 @@ class UnifiedMetrics:
     def format_metrics(metrics: Dict[str, float],
                       precision: int = 4) -> str:
         """
-        Format metrics for printing
+        格式化指标以便打印
 
-        Args:
-            metrics: Dictionary of metrics
-            precision: Number of decimal places
+        参数:
+            metrics: 指标字典
+            precision: 小数位数
 
-        Returns:
-            Formatted string
+        返回:
+            格式化字符串
         """
-        lines = ["=" * 80, "Evaluation Metrics", "=" * 80]
+        lines = ["=" * 80, "评估指标", "=" * 80]
 
-        # Group metrics by prefix
+        # 按前缀分组指标
         groups = {}
         for key, value in metrics.items():
             prefix = key.split('_')[0]
@@ -471,7 +471,7 @@ class UnifiedMetrics:
                 groups[prefix] = []
             groups[prefix].append((key, value))
 
-        # Print each group
+        # 打印每个组
         for group_name in sorted(groups.keys()):
             lines.append(f"\n{group_name.upper()}:")
             for key, value in sorted(groups[group_name]):
@@ -487,16 +487,16 @@ def compute_model_metrics(model: torch.nn.Module,
                          device: str = 'cpu',
                          num_fault_classes: int = 4) -> Dict[str, float]:
     """
-    Compute metrics for a model on a dataset
+    在数据集上计算模型的指标
 
-    Args:
-        model: PyTorch model
-        data_loader: Data loader
-        device: Device to run on
-        num_fault_classes: Number of fault classes
+    参数:
+        model: PyTorch模型
+        data_loader: 数据加载器
+        device: 运行设备
+        num_fault_classes: 故障类别数量
 
-    Returns:
-        Dictionary with all metrics
+    返回:
+        包含所有指标的字典
     """
     model.eval()
     model.to(device)
@@ -506,20 +506,20 @@ def compute_model_metrics(model: torch.nn.Module,
 
     with torch.no_grad():
         for batch in data_loader:
-            # Move to device
+            # 移至设备
             inputs = {k: v.to(device) if isinstance(v, torch.Tensor) else v
                      for k, v in batch.items()}
 
-            # Forward pass
+            # 前向传播
             outputs = model(inputs['features'])
 
-            # Collect predictions
+            # 收集预测
             for key, value in outputs.items():
                 if key not in all_predictions:
                     all_predictions[key] = []
                 all_predictions[key].append(value.cpu().numpy())
 
-            # Collect targets
+            # 收集目标
             for key in ['rul', 'temperature', 'vibration_x', 'vibration_y',
                       'quality_score', 'fault_label', 'displacement_x',
                       'displacement_y', 'displacement_z']:
@@ -529,14 +529,14 @@ def compute_model_metrics(model: torch.nn.Module,
                     all_targets[key].append(batch[key].cpu().numpy() if
                                           isinstance(batch[key], torch.Tensor) else batch[key])
 
-    # Concatenate all batches
+    # 连接所有批次
     for key in all_predictions:
         all_predictions[key] = np.concatenate(all_predictions[key], axis=0)
 
     for key in all_targets:
         all_targets[key] = np.concatenate(all_targets[key], axis=0)
 
-    # Compute metrics
+    # 计算指标
     metrics = UnifiedMetrics.compute_all(all_predictions, all_targets, num_fault_classes)
 
     return metrics

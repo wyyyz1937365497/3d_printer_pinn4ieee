@@ -1,65 +1,72 @@
-function simulation_data = run_full_simulation_gpu(gcode_file, output_file, parser_options, gpu_id)
-% RUN_FULL_SIMULATION_GPU - GPU-accelerated complete FDM simulation
+function simulation_data = run_full_simulation(gcode_file, output_file, parser_options)
+% RUN_FULL_SIMULATION - Complete simulation of FDM 3D printing process
 %
-% This is the GPU-accelerated version of run_full_simulation.m
-% Automatically uses GPU when beneficial, falls back to CPU otherwise.
+% This function orchestrates the complete simulation workflow:
+% 1. Load physics parameters
+% 2. Parse G-code (original or improved parser)
+% 3. Simulate trajectory error (dynamics)
+% 4. Simulate thermal field (heat transfer)
+% 5. Combine results into unified dataset
+% 6. Save to .mat file for Python processing
 %
 % Inputs:
 %   gcode_file     - Path to G-code file (.gcode)
 %   output_file    - Path to output .mat file (optional)
-%   parser_options - Options for G-code parser (optional)
-%   gpu_id         - GPU device ID (optional, default: auto-select)
-%                    Use 1 for cuda1, [] for auto-select
+%   parser_options - Options for G-code parser (optional, struct with fields):
+%     .use_improved - Use improved parser (default: true)
+%     .layers       - 'first', 'all', or specific layer numbers (default: 'first')
+%     .include_skirt - Include skirt/brim (default: false)
 %
 % Output:
 %   simulation_data - Complete simulation results structure
 %
 % Examples:
-%   % Auto-select GPU with most free memory
-%   data = run_full_simulation_gpu('print.gcode', 'output.mat', [], []);
+%   % Use improved parser (default, first layer only)
+%   data = run_full_simulation('print.gcode', 'simulation_results.mat');
 %
-%   % Use cuda1 specifically
-%   opts = struct('layers', 'first', 'use_improved', true);
-%   data = run_full_simulation_gpu('print.gcode', 'output.mat', opts, 1);
+%   % Use improved parser for all layers
+%   opts = struct('use_improved', true, 'layers', 'all');
+%   data = run_full_simulation('print.gcode', 'simulation_results.mat', opts);
+%
+%   % Use original parser
+%   opts = struct('use_improved', false);
+%   data = run_full_simulation('print.gcode', 'simulation_results.mat', opts);
 
     fprintf('============================================================\n');
-    fprintf('GPU-ACCELERATED FDM 3D PRINTER SIMULATION\n');
+    fprintf('FDM 3D PRINTER SIMULATION\n');
     fprintf('============================================================\n');
     fprintf('\n');
 
     %% Check inputs
     if nargin < 1
+        % Default G-code file
         gcode_file = 'Tremendous Hillar_PLA_17m1s.gcode';
     end
 
     if nargin < 2
+        % Default output file
         [filepath, name, ~] = fileparts(gcode_file);
         output_file = fullfile(filepath, [name, '_simulation.mat']);
     end
 
     if nargin < 3
+        % Default parser options: use improved parser, first layer only
         parser_options = struct();
         parser_options.use_improved = true;
         parser_options.layers = 'first';
         parser_options.include_skirt = false;
     end
 
-    if nargin < 4
-        gpu_id = [];  % Auto-select
-    end
-
     fprintf('G-code file: %s\n', gcode_file);
     fprintf('Output file: %s\n', output_file);
-    fprintf('\n');
 
-    %% Step 0: Setup GPU
-    fprintf('STEP 0: Setting up GPU acceleration...\n');
-
-    % Ensure gpu_utils is in path
-    script_dir = fileparts(mfilename('fullpath'));
-    addpath(script_dir);
-
-    gpu_info = setup_gpu(gpu_id);
+    if isfield(parser_options, 'use_improved')
+        if parser_options.use_improved
+            fprintf('Parser: Improved (2D trajectory extraction)\n');
+        else
+            fprintf('Parser: Original (full 3D parsing)\n');
+        end
+    end
     fprintf('\n');
 
     %% Step 1: Load physics parameters
@@ -71,67 +78,51 @@ function simulation_data = run_full_simulation_gpu(gcode_file, output_file, pars
     fprintf('STEP 2: Parsing G-code file...\n');
 
     if isfield(parser_options, 'use_improved') && parser_options.use_improved
+        % Use improved parser
         fprintf('  Using improved parser for 2D trajectory extraction\n');
         trajectory_data = parse_gcode_improved(gcode_file, params, parser_options);
     else
+        % Use original parser (preserved for backward compatibility)
         fprintf('  Using original parser\n');
         trajectory_data = parse_gcode(gcode_file, params);
     end
     fprintf('\n');
 
-    %% Step 3: Simulate thermal field
-    fprintf('STEP 3: Simulating thermal field...\n');
+    %% Step 3: Simulate trajectory error
+    fprintf('STEP 3: Simulating trajectory error (second-order dynamics)...\n');
+    trajectory_results = simulate_trajectory_error(trajectory_data, params);
+    fprintf('\n');
+
+    %% Step 4: Simulate thermal field
+    fprintf('STEP 4: Simulating thermal field (moving heat source)...\n');
     thermal_results = simulate_thermal_field(trajectory_data, params);
     fprintf('\n');
 
-    %% Step 4: Calculate quality metrics (from reference trajectory ONLY)
-    fprintf('STEP 4: Calculating implicit quality parameters...\n');
-    fprintf('  Note: Quality metrics are computed from reference trajectory + thermal field\n');
-    fprintf('  They do NOT depend on simulated trajectory errors\n');
-    quality_data = calculate_quality_metrics(trajectory_data, thermal_results, params);
-    fprintf('\n');
+    %% Step 5: Combine results
+    fprintf('STEP 5: Combining results into unified dataset...\n');
 
-    %% Step 5: Simulate trajectory error (GPU or CPU)
-    fprintf('STEP 5: Simulating trajectory error...\n');
-
-    % Choose GPU or CPU based on data size and GPU availability
-    n_points = length(trajectory_data.time);
-
-    if gpu_info.use_gpu && n_points > 500
-        fprintf('  Using GPU-accelerated simulation\n');
-        trajectory_results = simulate_trajectory_error_gpu(trajectory_data, params, gpu_info);
-    else
-        if gpu_info.available
-            fprintf('  Using CPU simulation (dataset too small: %d points)\n', n_points);
-        else
-            fprintf('  Using CPU simulation (GPU not available)\n');
-        end
-        trajectory_results = simulate_trajectory_error(trajectory_data, params);
-    end
-    fprintf('\n');
-
-    %% Step 6: Combine results
-    fprintf('STEP 6: Combining results into unified dataset...\n');
-
+    % Ensure all time series are aligned
     t = trajectory_data.time;
     n_points = length(t);
 
+    % Create unified output structure
     simulation_data = [];
 
     % === TIME ===
     simulation_data.time = t(:);
 
-    % === REFERENCE TRAJECTORY ===
+    % === REFERENCE TRAJECTORY (G-code) ===
     simulation_data.x_ref = trajectory_data.x(:);
     simulation_data.y_ref = trajectory_data.y(:);
     simulation_data.z_ref = trajectory_data.z(:);
 
-    % === ACTUAL TRAJECTORY ===
+    % === ACTUAL TRAJECTORY (with dynamics) ===
     simulation_data.x_act = trajectory_results.x_act(:);
     simulation_data.y_act = trajectory_results.y_act(:);
     simulation_data.z_act = trajectory_results.z_act(:);
 
     % === KINEMATICS ===
+    % Velocity
     simulation_data.vx_ref = trajectory_data.vx(:);
     simulation_data.vy_ref = trajectory_data.vy(:);
     simulation_data.vz_ref = trajectory_data.vz(:);
@@ -140,6 +131,7 @@ function simulation_data = run_full_simulation_gpu(gcode_file, output_file, pars
     simulation_data.vz_act = trajectory_results.vz_act(:);
     simulation_data.v_mag_ref = trajectory_data.v_actual(:);
 
+    % Acceleration
     simulation_data.ax_ref = trajectory_data.ax(:);
     simulation_data.ay_ref = trajectory_data.ay(:);
     simulation_data.az_ref = trajectory_data.az(:);
@@ -148,20 +140,26 @@ function simulation_data = run_full_simulation_gpu(gcode_file, output_file, pars
     simulation_data.az_act = trajectory_results.az_act(:);
     simulation_data.a_mag_ref = trajectory_data.acceleration(:);
 
+    % Jerk
     simulation_data.jx_ref = trajectory_data.jx(:);
     simulation_data.jy_ref = trajectory_data.jy(:);
     simulation_data.jz_ref = trajectory_data.jz(:);
     simulation_data.jerk_mag = trajectory_data.jerk(:);
 
     % === DYNAMICS ===
+    % Inertial forces
     simulation_data.F_inertia_x = trajectory_results.F_inertia_x(:);
     simulation_data.F_inertia_y = trajectory_results.F_inertia_y(:);
+
+    % Elastic forces (belt stretch)
     simulation_data.F_elastic_x = trajectory_results.F_elastic_x(:);
     simulation_data.F_elastic_y = trajectory_results.F_elastic_y(:);
+
+    % Belt stretch (displacement)
     simulation_data.belt_stretch_x = trajectory_results.belt_stretch_x(:);
     simulation_data.belt_stretch_y = trajectory_results.belt_stretch_y(:);
 
-    % === TRAJECTORY ERROR ===
+    % === TRAJECTORY ERROR (as vectors!) ===
     simulation_data.error_x = trajectory_results.error_x(:);
     simulation_data.error_y = trajectory_results.error_y(:);
     simulation_data.error_magnitude = trajectory_results.error_magnitude(:);
@@ -187,24 +185,15 @@ function simulation_data = run_full_simulation_gpu(gcode_file, output_file, pars
     % === ADHESION STRENGTH ===
     simulation_data.adhesion_ratio = thermal_results.adhesion_ratio(:);
 
-    % === QUALITY METRICS (Implicit Parameters) ===
-    simulation_data.internal_stress = quality_data.internal_stress(:);
-    simulation_data.porosity = quality_data.porosity(:);
-    simulation_data.dimensional_accuracy = quality_data.dimensional_accuracy(:);
-    simulation_data.quality_score = quality_data.quality_score(:);
-
     % === SYSTEM PARAMETERS ===
     simulation_data.params = params;
-
-    % === GPU INFO ===
-    simulation_data.gpu_info = gpu_info;
 
     fprintf('  Combined dataset: %d time points\n', n_points);
     fprintf('  Number of variables: %d\n', length(fieldnames(simulation_data)));
     fprintf('\n');
 
-    %% Step 7: Save to file
-    fprintf('STEP 7: Saving simulation results...\n');
+    %% Step 6: Save to file
+    fprintf('STEP 6: Saving simulation results...\n');
     save(output_file, 'simulation_data', '-v7.3');
     fprintf('  Saved to: %s\n', output_file);
     fprintf('\n');
@@ -215,18 +204,13 @@ function simulation_data = run_full_simulation_gpu(gcode_file, output_file, pars
     fprintf('============================================================\n');
     fprintf('\n');
 
-    fprintf('GPU ACCELERATION:\n');
-    if gpu_info.use_gpu
-        fprintf('  Used GPU: %s\n', gpu_info.name);
-        fprintf('  GPU Memory: %.2f GB free\n', gpu_info.memory);
-    else
-        fprintf('  Used CPU (GPU not available or not beneficial)\n');
-    end
-    fprintf('\n');
-
     fprintf('TRAJECTORY STATISTICS:\n');
-    fprintf('  Total print time: %.2f s (%.2f min)\n', max(t), max(t)/60);
+    fprintf('  Total print time: %.2f s (%.2f min)\n', ...
+            max(t), max(t)/60);
     fprintf('  Number of layers: %d\n', max(trajectory_data.layer_num));
+    fprintf('  Total extrusion distance: %.2f mm\n', ...
+            sum(simulation_data.v_mag_ref(simulation_data.is_extruding) .* ...
+                mean(diff(simulation_data.time))));
     fprintf('\n');
 
     fprintf('KINEMATICS:\n');
@@ -237,8 +221,10 @@ function simulation_data = run_full_simulation_gpu(gcode_file, output_file, pars
 
     fprintf('TRAJECTORY ERROR:\n');
     fprintf('  Max error magnitude: %.3f mm\n', max(simulation_data.error_magnitude));
-    fprintf('  RMS error magnitude: %.3f mm\n', rms(simulation_data.error_magnitude));
-    fprintf('  Mean error magnitude: %.3f mm\n', mean(simulation_data.error_magnitude));
+    fprintf('  RMS error magnitude: %.3f mm\n', ...
+            rms(simulation_data.error_magnitude));
+    fprintf('  Mean error magnitude: %.3f mm\n', ...
+            mean(simulation_data.error_magnitude));
     fprintf('  Max corner error: %.3f mm\n', ...
             max(simulation_data.error_magnitude(simulation_data.is_corner)));
     fprintf('\n');
@@ -249,6 +235,8 @@ function simulation_data = run_full_simulation_gpu(gcode_file, output_file, pars
             mean(simulation_data.T_interface(simulation_data.is_extruding)));
     fprintf('  Max cooling rate: %.2f °C/s\n', ...
             abs(min(simulation_data.cooling_rate)));
+    fprintf('  Mean interlayer time: %.2f s\n', ...
+            mean(simulation_data.interlayer_time(simulation_data.interlayer_time > 0)));
     fprintf('\n');
 
     fprintf('ADHESION:\n');
@@ -257,17 +245,6 @@ function simulation_data = run_full_simulation_gpu(gcode_file, output_file, pars
             mean(simulation_data.adhesion_ratio(valid_adhesion)));
     fprintf('  Min adhesion ratio: %.2f\n', ...
             min(simulation_data.adhesion_ratio(valid_adhesion)));
-    fprintf('\n');
-
-    fprintf('QUALITY METRICS:\n');
-    fprintf('  Internal stress: %.2f ± %.2f MPa\n', ...
-            mean(simulation_data.internal_stress), std(simulation_data.internal_stress));
-    fprintf('  Porosity: %.2f ± %.2f %%\n', ...
-            mean(simulation_data.porosity), std(simulation_data.porosity));
-    fprintf('  Dimensional error: %.3f ± %.3f mm\n', ...
-            mean(simulation_data.dimensional_accuracy), std(simulation_data.dimensional_accuracy));
-    fprintf('  Quality score: %.3f ± %.3f\n', ...
-            mean(simulation_data.quality_score), std(simulation_data.quality_score));
     fprintf('\n');
 
     fprintf('============================================================\n');
@@ -286,7 +263,7 @@ end
 function create_summary_plots(data, output_file)
     fprintf('Creating summary plots...\n');
 
-    fig = figure('Name', 'Simulation Summary (GPU)', 'Position', [50, 50, 1600, 1000]);
+    fig = figure('Name', 'Simulation Summary', 'Position', [50, 50, 1600, 1000]);
 
     % Trajectory error
     subplot(3, 4, 1);

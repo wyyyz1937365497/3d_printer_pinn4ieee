@@ -297,11 +297,20 @@ function simulation_data = run_full_simulation_with_reconstruction(...
 
     gpu_info = setup_gpu(gpu_id);
 
-    if gpu_info.use_gpu && n_points > 1000
+    % 调试输出
+    fprintf('  GPU检查: use_gpu=%d, n_points=%d, n_points>1000=%d\n', ...
+            gpu_info.use_gpu, n_points, n_points > 1000);
+
+    if gpu_info.use_gpu && n_points > 500
         fprintf('  使用GPU加速仿真\n');
         trajectory_results = simulate_trajectory_error_gpu(trajectory_data, params, gpu_info);
     else
         fprintf('  使用CPU仿真\n');
+        if ~gpu_info.use_gpu
+            fprintf('    原因: GPU不可用\n');
+        else
+            fprintf('    原因: 数据点数过小 (n_points=%d <= 1000)\n', n_points);
+        end
         trajectory_results = simulate_trajectory_error(trajectory_data, params);
     end
 
@@ -375,7 +384,7 @@ function simulation_data = combine_results(trajectory, trajectory_results, ...
     simulation_data.error_direction = trajectory_results.error_direction(:);
 
     % Thermal
-    simulation_data.T_nozzle = thermal.T_nozzle(:);
+    simulation_data.T_nozzle = thermal.T_nozzle_history(:);  % 喷嘴温度历史
     simulation_data.T_interface = thermal.T_interface(:);
     simulation_data.T_surface = thermal.T_surface(:);
     simulation_data.cooling_rate = thermal.cooling_rate(:);
