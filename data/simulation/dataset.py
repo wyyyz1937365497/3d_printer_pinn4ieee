@@ -222,6 +222,12 @@ class PrinterSimulationDataset(Dataset):
             print(f"Warning: Missing features {missing_features} in {filepath}")
 
         # Handle missing quality features (may not be in old MATLAB files)
+        # Adhesion field compatibility
+        if 'adhesion_strength' not in data and 'adhesion_ratio' in data:
+            data['adhesion_strength'] = data['adhesion_ratio']
+        if 'adhesion_ratio' not in data and 'adhesion_strength' in data:
+            data['adhesion_ratio'] = data['adhesion_strength']
+
         # If missing, set to zeros or compute from existing features
         if 'internal_stress' not in data:
             data['internal_stress'] = np.zeros_like(data.get('adhesion_ratio', np.zeros(1)))

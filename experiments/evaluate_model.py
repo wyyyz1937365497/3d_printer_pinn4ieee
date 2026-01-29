@@ -54,7 +54,17 @@ class ModelEvaluator:
         # Load model
         self.logger.info(f"Loading model from {model_path}")
         self.model = UnifiedPINNSeq3D(self.config)
-        checkpoint = torch.load(model_path, map_location=self.device)
+        try:
+            checkpoint = torch.load(model_path, map_location=self.device, weights_only=False)
+        except TypeError:
+            # 兼容旧版本torch.load不支持weights_only参数
+            checkpoint = torch.load(model_path, map_location=self.device)
+        except Exception:
+            # PyTorch 2.6+ 安全反序列化回退
+            from torch.serialization import safe_globals
+            from config.base_config import DataConfig, TrainingConfig, ModelConfig, PhysicsConfig, BaseConfig
+            with safe_globals([DataConfig, TrainingConfig, ModelConfig, PhysicsConfig, BaseConfig]):
+                checkpoint = torch.load(model_path, map_location=self.device)
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.model.to(self.device)
         self.model.eval()
@@ -95,6 +105,20 @@ class ModelEvaluator:
 
                 # Forward pass
                 outputs = self.model(inputs['features'])
+
+                # 轨迹输出对齐（支持error_x/y或序列输出）
+                if 'displacement_x_seq' in outputs:
+                    outputs['displacement_x'] = outputs['displacement_x_seq'].mean(dim=1, keepdim=True)
+                elif 'error_x' in outputs:
+                    outputs['displacement_x'] = outputs['error_x'].unsqueeze(-1)
+
+                if 'displacement_y_seq' in outputs:
+                    outputs['displacement_y'] = outputs['displacement_y_seq'].mean(dim=1, keepdim=True)
+                elif 'error_y' in outputs:
+                    outputs['displacement_y'] = outputs['error_y'].unsqueeze(-1)
+
+                if 'displacement_z_seq' in outputs:
+                    outputs['displacement_z'] = outputs['displacement_z_seq'].mean(dim=1, keepdim=True)
 
                 # Collect predictions
                 for key, value in outputs.items():
@@ -400,8 +424,68 @@ def main():
         dataset = SyntheticDataset(num_samples=1000)
         data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
     else:
-        # Load real data (implement this based on your data format)
-        raise NotImplementedError("Please implement data loading for your specific format")
+        # Load real data from MATLAB simulation files
+        import glob
+        from data.simulation import PrinterSimulationDataset
+
+        # data_path can be a directory or a glob pattern
+        data_path = Path(args.data_path)
+        if data_path.is_dir():
+            mat_files = glob.glob(str(data_path / "*.mat"))
+        else:
+            candidates = glob.glob(args.data_path)
+            mat_files = []
+            for p in candidates:
+                p_path = Path(p)
+                if p_path.is_dir():
+                    mat_files.extend(glob.glob(str(p_path / "*.mat")))
+                elif p_path.is_file() and p_path.suffix.lower() == ".mat":
+                    mat_files.append(str(p_path))
+
+        if not mat_files:
+            raise ValueError(f"No .mat files found for data_path: {args.data_path}")
+
+        # Build dataset and adapt to evaluator expected keys
+        base_dataset = PrinterSimulationDataset(
+            mat_files,
+            seq_len=evaluator.config.data.seq_len,
+            pred_len=evaluator.config.data.pred_len,
+            stride=evaluator.config.data.stride,
+            mode='test',
+            fit_scaler=True
+        )
+
+        from torch.utils.data import Dataset
+
+        class EvalAdapterDataset(Dataset):
+            def __init__(self, dataset):
+                self.dataset = dataset
+
+            def __len__(self):
+                return len(self.dataset)
+
+            def __getitem__(self, idx):
+                sample = self.dataset[idx]
+
+                # Map to evaluator expected keys
+                features = sample['input_features']
+                traj = sample['trajectory_targets']
+                quality = sample['quality_targets']
+
+                displacement_x = traj[:, 0:1].mean(dim=0, keepdim=True)
+                displacement_y = traj[:, 1:2].mean(dim=0, keepdim=True)
+                displacement_z = torch.zeros_like(displacement_x)
+
+                return {
+                    'features': features,
+                    'quality_score': quality[-1:].unsqueeze(0),
+                    'displacement_x': displacement_x,
+                    'displacement_y': displacement_y,
+                    'displacement_z': displacement_z,
+                }
+
+        dataset = EvalAdapterDataset(base_dataset)
+        data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
 
     # Evaluate
     metrics = evaluator.evaluate_dataloader(data_loader)

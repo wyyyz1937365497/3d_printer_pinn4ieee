@@ -11,7 +11,7 @@ from typing import Dict, Optional
 from .base_model import BaseModel
 from .encoders import PINNTransformerEncoder
 from .decoders.quality_decoder import QualityPredictionHead, FaultClassificationHead
-from .decoders.trajectory_decoder import TrajectoryCorrectionHead
+from .decoders.trajectory_decoder import TrajectoryCorrectionHead, TrajectorySequenceDecoder
 
 
 class UnifiedPINNSeq3D(BaseModel):
@@ -61,15 +61,26 @@ class UnifiedPINNSeq3D(BaseModel):
             num_classes=config.data.num_fault_classes,
         )
 
-        # 轨迹校正头
-        self.trajectory_head = TrajectoryCorrectionHead(
-            d_model=config.model.d_model,
-            lstm_hidden=config.model.trajectory_lstm_hidden,
-            lstm_layers=config.model.trajectory_lstm_layers,
-            bidirectional=config.model.trajectory_bidirectional,
-            use_attention=config.model.trajectory_attention,
-            num_outputs=config.data.num_trajectory_outputs,
-        )
+        # 轨迹校正头（序列 or pooled）
+        if getattr(config.model, 'trajectory_predict_seq', False):
+            self.trajectory_head = TrajectorySequenceDecoder(
+                d_model=config.model.d_model,
+                lstm_hidden=config.model.trajectory_lstm_hidden,
+                lstm_layers=config.model.trajectory_lstm_layers,
+                bidirectional=config.model.trajectory_bidirectional,
+                use_attention=config.model.trajectory_attention,
+                num_outputs=config.data.num_trajectory_outputs,
+                dropout=config.model.dropout,
+            )
+        else:
+            self.trajectory_head = TrajectoryCorrectionHead(
+                d_model=config.model.d_model,
+                lstm_hidden=config.model.trajectory_lstm_hidden,
+                lstm_layers=config.model.trajectory_lstm_layers,
+                bidirectional=config.model.trajectory_bidirectional,
+                use_attention=config.model.trajectory_attention,
+                num_outputs=config.data.num_trajectory_outputs,
+            )
 
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> Dict[str, torch.Tensor]:
         """

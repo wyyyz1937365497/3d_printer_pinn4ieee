@@ -40,7 +40,7 @@ class DataConfig:
     ])
 
     output_quality: list = field(default_factory=lambda: [
-        'adhesion_ratio',                    # 粘结强度比
+        'adhesion_strength',                 # 层间粘结强度 (MPa)
         'internal_stress',                   # 内应力 (MPa)
         'porosity',                          # 孔隙率 (%)
         'dimensional_accuracy',              # 尺寸精度
@@ -124,6 +124,7 @@ class ModelConfig:
     trajectory_lstm_layers: int = 2
     trajectory_bidirectional: bool = True
     trajectory_attention: bool = True
+    trajectory_predict_seq: bool = True
 
 
 @dataclass

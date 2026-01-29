@@ -335,6 +335,10 @@ class QualityMetrics:
         返回:
             包含质量分数指标的字典
         """
+        # 统一为一维数组，避免分类指标类型错误
+        predictions = np.asarray(predictions).reshape(-1)
+        targets = np.asarray(targets).reshape(-1)
+
         # 标准回归指标
         metrics = RegressionMetrics.compute(predictions, targets, prefix=prefix)
 

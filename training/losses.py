@@ -81,6 +81,26 @@ class MultiTaskLoss(nn.Module):
             )
             losses.append(score_loss)
 
+        # Adhesion strength (MSE)
+        if 'adhesion_strength' in predictions and 'adhesion_strength' in targets:
+            adhesion_loss = self.mse_loss(predictions['adhesion_strength'], targets['adhesion_strength'])
+            losses.append(adhesion_loss)
+
+        # Internal stress (MSE)
+        if 'internal_stress' in predictions and 'internal_stress' in targets:
+            stress_loss = self.mse_loss(predictions['internal_stress'], targets['internal_stress'])
+            losses.append(stress_loss)
+
+        # Porosity (MSE)
+        if 'porosity' in predictions and 'porosity' in targets:
+            porosity_loss = self.mse_loss(predictions['porosity'], targets['porosity'])
+            losses.append(porosity_loss)
+
+        # Dimensional accuracy (MSE)
+        if 'dimensional_accuracy' in predictions and 'dimensional_accuracy' in targets:
+            accuracy_loss = self.mse_loss(predictions['dimensional_accuracy'], targets['dimensional_accuracy'])
+            losses.append(accuracy_loss)
+
         if losses:
             return sum(losses) / len(losses)
         # 如果没有找到任何预期的损失项，则返回0.0，使用targets字典中的任意tensor获取设备信息
@@ -119,6 +139,39 @@ class MultiTaskLoss(nn.Module):
             Trajectory correction loss
         """
         losses = []
+
+        # 先处理序列轨迹（如果存在）
+        if 'displacement_x_seq' in predictions and 'displacement_x_seq' in targets:
+            pred_x_seq = predictions['displacement_x_seq']
+            target_x_seq = targets['displacement_x_seq']
+            # 对齐序列长度（取末尾pred_len）
+            if pred_x_seq.dim() == 3 and target_x_seq.dim() == 3:
+                target_len = target_x_seq.size(1)
+                if pred_x_seq.size(1) != target_len:
+                    pred_x_seq = pred_x_seq[:, -target_len:, :]
+            dx_seq_loss = self.smooth_l1_loss(pred_x_seq, target_x_seq)
+            losses.append(dx_seq_loss)
+
+        if 'displacement_y_seq' in predictions and 'displacement_y_seq' in targets:
+            pred_y_seq = predictions['displacement_y_seq']
+            target_y_seq = targets['displacement_y_seq']
+            if pred_y_seq.dim() == 3 and target_y_seq.dim() == 3:
+                target_len = target_y_seq.size(1)
+                if pred_y_seq.size(1) != target_len:
+                    pred_y_seq = pred_y_seq[:, -target_len:, :]
+            dy_seq_loss = self.smooth_l1_loss(pred_y_seq, target_y_seq)
+            losses.append(dy_seq_loss)
+
+        if 'displacement_z_seq' in predictions and 'displacement_z_seq' in targets:
+            pred_z_seq = predictions['displacement_z_seq']
+            target_z_seq = targets['displacement_z_seq']
+            if pred_z_seq.dim() == 3 and target_z_seq.dim() == 3:
+                target_len = target_z_seq.size(1)
+                if pred_z_seq.size(1) != target_len:
+                    pred_z_seq = pred_z_seq[:, -target_len:, :]
+            if target_z_seq.abs().max().item() > 1e-6:
+                dz_seq_loss = self.smooth_l1_loss(pred_z_seq, target_z_seq)
+                losses.append(dz_seq_loss)
 
         # Use Smooth L1 loss for displacement (more robust to outliers)
         if 'displacement_x' in predictions and 'displacement_x' in targets:

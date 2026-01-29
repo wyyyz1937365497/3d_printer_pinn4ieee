@@ -34,24 +34,31 @@ collect_data
 ### 2. 训练模型（Python）
 
 ```bash
-# 快速测试训练
+# 统一模型快速训练（仿真 .mat 数据）
 python experiments/quick_train_simulation.py \
-    --data_dir data_simulation_layer25 \
-    --epochs 10 \
-    --batch_size 32
+    --data_dir data_simulation_3DBenchy_PLA_1h28m_layers_* \
+    --epochs 50 \
+    --batch_size 64
 
-# 完整训练
-python experiments/train_unified_model.py \
-    --config unified \
-    --epochs 100
+# 隐式状态推断模型
+python experiments/train_implicit_state.py \
+    --data_dir data_simulation_3DBenchy_PLA_1h28m_layers_* \
+    --epochs 50 \
+    --batch_size 64
+
+# 轨迹误差修正模型
+python experiments/train_trajectory_correction.py \
+    --data_dir data_simulation_3DBenchy_PLA_1h28m_layers_* \
+    --epochs 50 \
+    --batch_size 64
 ```
 
 ### 3. 评估模型
 
 ```bash
 python experiments/evaluate_model.py \
-    --checkpoint checkpoints/best_model.pth \
-    --test_dir validation_layer50
+    --model_path checkpoints/unified_model_all_tasks/best_model.pth \
+    --data_path data_simulation_3DBenchy_PLA_1h28m_layers_*/layer*.mat
 ```
 
 ---

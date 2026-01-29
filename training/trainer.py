@@ -176,12 +176,19 @@ class Trainer:
                 targets['displacement_x'] = traj_targets[:, :, 0:1].mean(dim=1, keepdim=True)  # [batch, 1, 1]
                 targets['displacement_y'] = traj_targets[:, :, 1:2].mean(dim=1, keepdim=True)  # [batch, 1, 1]
                 targets['displacement_z'] = torch.zeros_like(targets['displacement_x'])  # No z in data
+                # 序列目标（用于序列解码器）
+                targets['displacement_x_seq'] = traj_targets[:, :, 0:1]  # [batch, pred_len, 1]
+                targets['displacement_y_seq'] = traj_targets[:, :, 1:2]  # [batch, pred_len, 1]
             
             # 处理质量目标 quality_targets: [batch, 5] 
             if 'quality_targets' in batch_data and batch_data['quality_targets'].numel() > 0:
                 quality_targets = batch_data['quality_targets']  # [batch, 5]
                 # 质量指标的顺序: adhesion_ratio, internal_stress, porosity, dimensional_accuracy, quality_score
-                targets['quality_score'] = quality_targets[:, -1:]  # [batch, 1]
+                targets['adhesion_strength'] = quality_targets[:, 0:1]  # [batch, 1]
+                targets['internal_stress'] = quality_targets[:, 1:2]    # [batch, 1]
+                targets['porosity'] = quality_targets[:, 2:3]           # [batch, 1]
+                targets['dimensional_accuracy'] = quality_targets[:, 3:4]  # [batch, 1]
+                targets['quality_score'] = quality_targets[:, 4:5]      # [batch, 1]
 
             # 前向传播和损失计算
             outputs = self.model(batch_data['input_features'])
@@ -215,23 +222,6 @@ class Trainer:
                 'F_inertia_x': batch_data.get('F_inertia_x'),
                 'F_inertia_y': batch_data.get('F_inertia_y'),
             }
-            
-            # Debug: 在第一个batch时打印信息
-            if batch_idx == 0 and accum_step == 0 and self.current_epoch == 0:
-                print(f"\n[DEBUG Epoch {self.current_epoch+1}] Batch data keys: {list(batch_data.keys())}")
-                print(f"[DEBUG] Targets keys: {list(targets.keys())}")
-                print(f"[DEBUG] Outputs keys: {list(outputs.keys())}")
-                print(f"[DEBUG] Has trajectory targets: {'displacement_x' in targets}")
-                if 'displacement_x' in targets:
-                    print(f"[DEBUG]   displacement_x target: shape={targets['displacement_x'].shape}, range=[{targets['displacement_x'].min():.6f}, {targets['displacement_x'].max():.6f}]")
-                if 'displacement_x' in outputs:
-                    print(f"[DEBUG]   displacement_x output: shape={outputs['displacement_x'].shape}, range=[{outputs['displacement_x'].min():.6f}, {outputs['displacement_x'].max():.6f}]")
-                if 'displacement_x_seq' in outputs:
-                    print(f"[DEBUG]   displacement_x_seq: shape={outputs['displacement_x_seq'].shape}")
-                if 'F_inertia_x' in inputs and inputs['F_inertia_x'] is not None:
-                    print(f"[DEBUG] F_inertia_x shape: {inputs['F_inertia_x'].shape}, range: [{inputs['F_inertia_x'].min():.3f}, {inputs['F_inertia_x'].max():.3f}]")
-                else:
-                    print(f"[DEBUG] F_inertia_x is None or missing!")
             
             losses = self.criterion(
                 outputs,
@@ -328,22 +318,34 @@ class Trainer:
                 targets['displacement_x'] = traj_targets[:, :, 0:1].mean(dim=1, keepdim=True)  # [batch, 1, 1]
                 targets['displacement_y'] = traj_targets[:, :, 1:2].mean(dim=1, keepdim=True)  # [batch, 1, 1]
                 targets['displacement_z'] = torch.zeros_like(targets['displacement_x'])  # No z in data
+                # 序列目标（用于序列解码器）
+                targets['displacement_x_seq'] = traj_targets[:, :, 0:1]  # [batch, pred_len, 1]
+                targets['displacement_y_seq'] = traj_targets[:, :, 1:2]  # [batch, pred_len, 1]
             
             # 处理质量目标 quality_targets: [batch, 5] 
             if 'quality_targets' in batch_data and batch_data['quality_targets'].numel() > 0:
                 quality_targets = batch_data['quality_targets']  # [batch, 5]
                 # 质量指标的顺序: adhesion_ratio, internal_stress, porosity, dimensional_accuracy, quality_score
-                targets['quality_score'] = quality_targets[:, -1:]  # [batch, 1]
+                targets['adhesion_strength'] = quality_targets[:, 0:1]  # [batch, 1]
+                targets['internal_stress'] = quality_targets[:, 1:2]    # [batch, 1]
+                targets['porosity'] = quality_targets[:, 2:3]           # [batch, 1]
+                targets['dimensional_accuracy'] = quality_targets[:, 3:4]  # [batch, 1]
+                targets['quality_score'] = quality_targets[:, 4:5]      # [batch, 1]
 
             # 前向传播
             outputs = self.model(batch_data['input_features'])
             
-            # 调整模型输出的形状，将error_x/y映射到displacement_x/y
-            # 模型输出 error_x/y: [batch, 1] -> 需要扩展为 [batch, 1, 1]
-            if 'error_x' in outputs:
+            # 调整模型输出的形状，将序列或error输出映射到displacement_x/y
+            if 'displacement_x_seq' in outputs:
+                outputs['displacement_x'] = outputs['displacement_x_seq'].mean(dim=1, keepdim=True)
+            elif 'error_x' in outputs:
                 outputs['displacement_x'] = outputs['error_x'].unsqueeze(-1)  # [batch, 1] -> [batch, 1, 1]
-            if 'error_y' in outputs:
+
+            if 'displacement_y_seq' in outputs:
+                outputs['displacement_y'] = outputs['displacement_y_seq'].mean(dim=1, keepdim=True)
+            elif 'error_y' in outputs:
                 outputs['displacement_y'] = outputs['error_y'].unsqueeze(-1)  # [batch, 1] -> [batch, 1, 1]
+
             if 'displacement_z' not in outputs:
                 outputs['displacement_z'] = torch.zeros(outputs.get('displacement_x', targets.get('displacement_x')).shape, device=self.device)
             

@@ -248,7 +248,8 @@ class TrajectorySequenceDecoder(nn.Module):
         outputs = {
             'displacement_x_seq': corrections[:, :, 0:1],  # X correction sequence
             'displacement_y_seq': corrections[:, :, 1:2],  # Y correction sequence
-            'displacement_z_seq': corrections[:, :, 2:3],  # Z correction sequence
         }
+        if self.num_outputs >= 3:
+            outputs['displacement_z_seq'] = corrections[:, :, 2:3]  # Z correction sequence
 
         return outputs
