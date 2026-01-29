@@ -10,7 +10,9 @@
       "Bash(grep:*)",
       "Bash(python:*)",
       "Bash(conda run:*)",
-      "Bash(G:\\\\Miniconda3\\\\envs\\\\3dprint\\\\python.exe check_quality_features.py)"
+      "Bash(G:\\\\Miniconda3\\\\envs\\\\3dprint\\\\python.exe check_quality_features.py)",
+      "Bash(conda activate:*)",
+      "Bash(iconv:*)"
     ]
   }
 }

@@ -19,7 +19,7 @@ class DataConfig:
     # 数据参数
     seq_len: int = 200  # 序列长度（时间步）
     pred_len: int = 50  # 预测长度（时间步）
-    stride: int = 10  # 序列之间的步长
+    stride: int = 5  # 序列之间的步长（优化：从10减小到5，增加2倍训练样本）
     sampling_rate: int = 100  # 采样频率（Hz，MATLAB使用100Hz）
 
     # 输入特征（共12个）- 明确定义
