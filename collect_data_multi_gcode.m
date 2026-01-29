@@ -85,11 +85,29 @@ for i = 1:length(gcode_config)
     config = gcode_config{i};
     layers = config{2};
     n_params = config{3};
-    n_layers = isscalar(layers) ? 1 : length(layers);
+    if isscalar(layers)
+        n_layers = 1;
+    else
+        n_layers = length(layers);
+    end
     total_sims = total_sims + n_layers * n_params;
 end
 
 fprintf('总仿真次数: %d 次\n', total_sims);
+fprintf('\n');
+
+%% Display overall plan
+fprintf('============================================================\n');
+fprintf('数据收集计划概览\n');
+fprintf('============================================================\n');
+fprintf('\n');
+fprintf('总仿真次数: %d 次\n', total_sims);
+fprintf('预计总时间: %.1f - %.1f 小时\n', total_sims * 0.2 / 60, total_sims * 0.3 / 60);
+fprintf('\n');
+fprintf('提示:\n');
+fprintf('  - 每层G-code只需解析一次（自动缓存）\n');
+fprintf('  - 每5次仿真显示一次总进度\n');
+fprintf('  - 每10次仿真显示一次层进度\n');
 fprintf('\n');
 
 %% Parameter Grid Definition (used for all G-codes)
@@ -108,6 +126,9 @@ fprintf('\n');
 %% Main Loop: Process each G-code file with its configuration
 total_start_time = tic;
 total_sims_completed = 0;
+
+% Initialize global progress variables
+global_progress_start = tic;
 
 for gcode_idx = 1:length(gcode_config)
     config = gcode_config{gcode_idx};
@@ -157,7 +178,24 @@ for gcode_idx = 1:length(gcode_config)
 
         fprintf('输出目录：%s\n', output_dir);
 
-        %% Parameter Scan Loop for this layer
+        %% Step 1: Extract trajectory ONCE for this layer
+        fprintf('\n提取层 %d 轨迹数据（只执行一次）...\n', target_layer);
+        trajectory_options = struct();
+        trajectory_options.layers = target_layer;
+        trajectory_options.time_step = 0.01;
+        trajectory_options.include_type = {'Outer wall', 'Inner wall'};
+        trajectory_options.include_skirt = false;
+
+        % Extract trajectory (only ONCE per layer)
+        base_params = physics_parameters();
+        base_params.debug.verbose = false;
+        trajectory_data = reconstruct_trajectory(gcode_file, base_params, trajectory_options);
+
+        n_trajectory_points = length(trajectory_data.time);
+        fprintf('  轨迹提取完成：%d 个数据点\n', n_trajectory_points);
+        fprintf('\n');
+
+        %% Step 2: Parameter Scan Loop (reusing the same trajectory)
         sim_start_time = tic;
         sim_count = 0;
 
@@ -192,29 +230,43 @@ for gcode_idx = 1:length(gcode_config)
                     sprintf('combo_L%d_%04d_a%03d_v%03d_f%03d_t%02d.mat', ...
                             target_layer, idx, accel, velocity, fan, ambient_temp));
 
-                % Simulation options
-                options = struct();
-                options.layers = target_layer;
-                options.time_step = 0.01;  % 10ms time step
-                options.include_type = {'Outer wall', 'Inner wall'};
-                options.include_skirt = false;
-
-                % Run simulation with trajectory reconstruction
-                simulation_data = run_full_simulation_with_reconstruction(...
-                    gcode_file, ...
+                % Run simulation using pre-extracted trajectory
+                simulation_data = run_simulation_with_cached_trajectory(...
+                    trajectory_data, ...
                     output_file, ...
-                    options, ...
                     params, ...
                     gpu_id);
 
                 sim_count = sim_count + 1;
                 total_sims_completed = total_sims_completed + 1;
-                fprintf(' ✓\n');
+                fprintf(' ✓');
+
+                % Global progress display
+                global_progress_pct = 100 * total_sims_completed / total_sims;
+                global_elapsed = toc(global_progress_start);
+                global_remaining = global_elapsed / total_sims_completed * (total_sims - total_sims_completed);
+
+                % Display progress every 5 simulations or at important milestones
+                if mod(total_sims_completed, 5) == 0 || total_sims_completed == 1
+                    % Create progress bar
+                    bar_length = 40;
+                    filled = round(bar_length * global_progress_pct / 100);
+                    if filled > bar_length
+                        filled = bar_length;
+                    end
+                    progress_bar = [repmat('=', 1, filled), repmat(' ', 1, bar_length - filled)];
+
+                    fprintf(' | 总进度: [%s] %d/%d (%.1f%%) | 已用: %.1f min | 剩余: %.1f min\n', ...
+                            progress_bar, total_sims_completed, total_sims, global_progress_pct, ...
+                            global_elapsed/60, global_remaining/60);
+                else
+                    fprintf('\n');
+                end
 
                 if mod(idx, 10) == 0
                     elapsed = toc(sim_start_time);
                     remaining = elapsed / idx * (n_param_combos - idx);
-                    fprintf('  进度：%.1f%% | 已用：%.1f min | 预计剩余：%.1f min\n', ...
+                    fprintf('  层进度：%.1f%% | 已用：%.1f min | 预计剩余：%.1f min\n', ...
                             100*idx/n_param_combos, elapsed/60, remaining/60);
                 end
 
@@ -250,6 +302,11 @@ fprintf('批量数据收集完成！\n');
 fprintf('============================================================\n');
 fprintf('\n');
 
+% Final progress bar (100% complete)
+bar_length = 40;
+progress_bar = repmat('=', 1, bar_length);
+fprintf('总进度: [%s] %d/%d (100.0%%)\n\n', progress_bar, total_sims_completed, total_sims);
+
 fprintf('处理G-code文件：%d\n', length(gcode_config));
 for i = 1:length(gcode_config)
     config = gcode_config{i};
@@ -260,6 +317,7 @@ fprintf('\n');
 
 fprintf('成功完成仿真：%d 次\n', total_sims_completed);
 fprintf('总用时：%.2f 分钟 (%.2f 小时)\n', total_elapsed/60, total_elapsed/3600);
+fprintf('平均每次仿真：%.2f 秒\n', total_elapsed / total_sims_completed);
 fprintf('\n');
 
 fprintf('输出目录：\n');
@@ -287,7 +345,35 @@ fprintf('         data_simulation_* training -o training_data\n');
 fprintf('  4. 开始PINN训练\n');
 fprintf('\n');
 
-%% Helper function: Run simulation with trajectory reconstruction
+%% Helper function: Run simulation with cached trajectory (NO re-parsing)
+function simulation_data = run_simulation_with_cached_trajectory(...
+    trajectory_data, output_file, params, gpu_id)
+
+    % Step 1: Simulate trajectory error (using cached trajectory)
+    n_points = length(trajectory_data.time);
+
+    gpu_info = setup_gpu(gpu_id);
+
+    if gpu_info.use_gpu && n_points > 500
+        trajectory_results = simulate_trajectory_error_gpu(trajectory_data, params, gpu_info);
+    else
+        trajectory_results = simulate_trajectory_error(trajectory_data, params);
+    end
+
+    % Step 2: Simulate thermal field (already includes adhesion calculation)
+    thermal_results = simulate_thermal_field(trajectory_data, params);
+
+    % Step 3: Combine results
+    simulation_data = combine_results(trajectory_data, trajectory_results, ...
+                                     thermal_results, params);
+
+    % Step 4: Save
+    if nargin >= 2 && ~isempty(output_file)
+        save(output_file, 'simulation_data', '-v7.3');
+    end
+end
+
+%% Helper function: Run simulation with trajectory reconstruction (OLD - kept for compatibility)
 function simulation_data = run_full_simulation_with_reconstruction(...
     gcode_file, output_file, options, params, gpu_id)
 
