@@ -61,7 +61,7 @@ def build_loaders(data_dir, config, batch_size):
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=config.training.num_workers,
+        num_workers=config.num_workers,
         drop_last=True
     )
 
@@ -69,7 +69,7 @@ def build_loaders(data_dir, config, batch_size):
         val_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=config.training.num_workers
+        num_workers=config.num_workers
     )
 
     return train_loader, val_loader

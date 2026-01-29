@@ -203,14 +203,17 @@ class TrajectorySequenceDecoder(nn.Module):
 
         # Optional attention layer
         if use_attention:
-            self.attention = MultiHeadAttention(
-                d_model=lstm_output_dim,
+            self.attention = nn.MultiheadAttention(
+                embed_dim=lstm_output_dim,
                 num_heads=num_attention_heads,
-                dropout=dropout
+                dropout=dropout,
+                batch_first=True
             )
+            self.attn_norm = nn.LayerNorm(lstm_output_dim)
             attention_dim = lstm_output_dim
         else:
             self.attention = None
+            self.attn_norm = None
             attention_dim = lstm_output_dim
 
         # Output projection (applied to each time step)
@@ -237,7 +240,8 @@ class TrajectorySequenceDecoder(nn.Module):
         # Apply attention if enabled
         if self.use_attention:
             # Self-attention on LSTM output
-            attended_output = self.attention(lstm_output, lstm_output, lstm_output, mask)
+            attended_output, _ = self.attention(lstm_output, lstm_output, lstm_output, attn_mask=mask)
+            attended_output = self.attn_norm(attended_output + lstm_output)
         else:
             attended_output = lstm_output
 

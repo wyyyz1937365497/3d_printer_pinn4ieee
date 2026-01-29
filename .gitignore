@@ -53,7 +53,6 @@ checkpoints/*/
 
 # Outputs
 outputs/
-results/
 
 # OS
 .DS_Store
@@ -66,7 +65,7 @@ events.out.tfevents.*
 wandb/
 
 # Matplotlib
-*.png
+
 *.jpg
 *.pdf
 !docs/img/*.png

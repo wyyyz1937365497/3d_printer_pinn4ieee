@@ -76,8 +76,8 @@ collect_data
 ```
 
 **输出**:
-- `data_simulation_layer25/` - 100个参数配置的仿真
-- `validation_layer1/`, `validation_layer25/`, `validation_layer50/` - 验证数据
+- `data_simulation_3DBenchy_PLA_1h28m_layers_*/` - Benchy仿真数据
+- 可选：独立验证集目录（如自定义validation_*）
 
 ### 2️⃣ 生成的数据字段
 
@@ -100,7 +100,7 @@ collect_data
 - `error_x, error_y` - X/Y误差
 
 **质量特征** (5个):
-- `adhesion_ratio` - 粘结强度比 (0-1)
+- `adhesion_strength` - 粘结强度 (MPa)
 - `internal_stress` - 内应力 (MPa)
 - `porosity` - 孔隙率 (0-100%)
 - `dimensional_accuracy` - 尺寸误差 (mm)
@@ -117,9 +117,9 @@ from data.simulation import create_dataloaders
 
 # 创建dataloaders
 train_loader, val_loader, test_loader, scaler = create_dataloaders(
-    train_dir='data_simulation_layer25',
-    val_dir='validation_layer25',
-    test_dir='validation_layer50',
+    train_dir='data_simulation_3DBenchy_PLA_1h28m_layers_*',
+    val_dir='data_simulation_3DBenchy_PLA_1h28m_layers_*',
+    test_dir='data_simulation_3DBenchy_PLA_1h28m_layers_*',
     batch_size=64,
     seq_len=200,
     pred_len=50,
@@ -142,7 +142,7 @@ from data.simulation import PrinterSimulationDataset
 
 # 创建数据集
 dataset = PrinterSimulationDataset(
-    data_files='data_simulation_layer25/*.mat',
+    data_files='data_simulation_3DBenchy_PLA_1h28m_layers_*/layer*.mat',
     seq_len=200,      # 输入序列长度
     pred_len=50,      # 预测序列长度
     stride=10,        # 序列滑动步长
@@ -154,29 +154,35 @@ dataset = PrinterSimulationDataset(
 # 访问样本
 sample = dataset[0]
 print(sample.keys())
-# dict_keys(['input_features', 'trajectory_targets', 'quality_targets'])
+# dict_keys(['input_features', 'trajectory_targets', 'quality_targets', 'F_inertia_x', 'F_inertia_y', 'data_idx', 'start_idx'])
 ```
 
 ---
 
 ## 模型训练
 
-### 1️⃣ 快速训练（测试）
+### 1️⃣ 快速训练（统一模型）
 
 ```bash
 python experiments/quick_train_simulation.py \
-    --data_dir data_simulation_layer25 \
-    --epochs 10 \
-    --batch_size 32
+    --data_dir data_simulation_3DBenchy_PLA_1h28m_layers_* \
+    --epochs 50 \
+    --batch_size 64
 ```
 
-### 2️⃣ 完整训练
+### 2️⃣ 隐式状态推断模型
 
 ```bash
-python experiments/train_unified_model.py \
-    --config unified \
-    --data_dir data_simulation_layer25 \
-    --epochs 100 \
+python experiments/train_implicit_state.py \
+    --data_dir data_simulation_3DBenchy_PLA_1h28m_layers_* \
+    --epochs 50 \
+    --batch_size 64
+
+### 3️⃣ 轨迹误差修正模型
+
+python experiments/train_trajectory_correction.py \
+    --data_dir data_simulation_3DBenchy_PLA_1h28m_layers_* \
+    --epochs 50 \
     --batch_size 64
 ```
 
@@ -193,9 +199,9 @@ config = get_config(preset='unified')
 
 # 2. 创建dataloaders
 train_loader, val_loader, test_loader, scaler = create_dataloaders(
-    train_dir='data_simulation_layer25',
-    val_dir='validation_layer25',
-    test_dir='validation_layer50',
+    train_dir='data_simulation_3DBenchy_PLA_1h28m_layers_*',
+    val_dir='data_simulation_3DBenchy_PLA_1h28m_layers_*',
+    test_dir='data_simulation_3DBenchy_PLA_1h28m_layers_*',
     batch_size=config.training.batch_size,
     seq_len=config.data.seq_len,
     pred_len=config.data.pred_len,
@@ -203,18 +209,13 @@ train_loader, val_loader, test_loader, scaler = create_dataloaders(
 )
 
 # 3. 创建模型
-model = UnifiedPINNSeq3D(config.model)
+model = UnifiedPINNSeq3D(config)
 
 # 4. 创建trainer
-trainer = Trainer(model, config)
+trainer = Trainer(model, config, train_loader, val_loader)
 
 # 5. 训练
-history = trainer.train(
-    train_loader,
-    val_loader,
-    epochs=config.training.num_epochs,
-    save_dir='checkpoints/my_experiment'
-)
+history = trainer.train()
 ```
 
 ---
@@ -235,7 +236,7 @@ collect_data
 
 ```bash
 python data/scripts/prepare_training_data.py \
-    --mat_dir data_simulation_layer25 \
+    --mat_dir data_simulation_3DBenchy_PLA_1h28m_layers_* \
     --output_dir data/processed
 ```
 
@@ -243,7 +244,7 @@ python data/scripts/prepare_training_data.py \
 
 ```bash
 python experiments/quick_train_simulation.py \
-    --data_dir data_simulation_layer25 \
+    --data_dir data_simulation_3DBenchy_PLA_1h28m_layers_* \
     --epochs 100 \
     --batch_size 64
 ```
@@ -252,8 +253,8 @@ python experiments/quick_train_simulation.py \
 
 ```bash
 python experiments/evaluate_model.py \
-    --checkpoint checkpoints/quick_train/best_model.pth \
-    --test_dir validation_layer50
+    --model_path checkpoints/unified_model_all_tasks/best_model.pth \
+    --data_path data_simulation_3DBenchy_PLA_1h28m_layers_*/layer*.mat
 ```
 
 ---
@@ -304,7 +305,7 @@ quality_data = calculate_quality_metrics(trajectory_data, thermal_data, params);
 ```python
 from data.simulation import PrinterSimulationDataset
 
-dataset = PrinterSimulationDataset('data_simulation_layer25/*.mat')
+dataset = PrinterSimulationDataset('data_simulation_3DBenchy_PLA_1h28m_layers_*/layer*.mat')
 ```
 
 ### Q2: 缺少质量特征怎么办？
@@ -358,7 +359,7 @@ input_features = input_features + noise
 
 #### 质量特征预测 (5个输出)
 ```python
-# 1. 粘结强度比 (adhesion_ratio, 0-1)
+# 1. 粘结强度 (adhesion_strength, MPa)
 - R² score: 目标 > 0.85
 - RMSE: 目标 < 0.1
 
@@ -383,15 +384,10 @@ input_features = input_features + noise
 
 ```bash
 # 完整评估pipeline
-python experiments/full_evaluation_pipeline.py \
-    --model_path checkpoints/best_model.pth \
-    --output_dir results/evaluation \
-    --data_dir validation_layer50
-
 # 快速评估
 python experiments/evaluate_model.py \
-    --checkpoint checkpoints/best_model.pth \
-    --test_dir validation_layer50
+    --model_path checkpoints/unified_model_all_tasks/best_model.pth \
+    --data_path data_simulation_3DBenchy_PLA_1h28m_layers_*/layer*.mat
 ```
 
 ### 可视化结果
