@@ -350,6 +350,8 @@ class PrinterSimulationDataset(Dataset):
             - input_features: [seq_len, 12]
             - trajectory_targets: [pred_len, 2]
             - quality_targets: [5]
+            - F_inertia_x: [seq_len] 惯性力X轴
+            - F_inertia_y: [seq_len] 惯性力Y轴
         """
         seq = self.sequences[idx]
 
@@ -359,11 +361,20 @@ class PrinterSimulationDataset(Dataset):
         else:
             input_features = seq['input_features']
 
+        # 提取惯性力特征（用于物理约束损失）
+        # 根据INPUT_FEATURES的顺序：x_ref, y_ref, z_ref, vx_ref, vy_ref, vz_ref, 
+        # T_nozzle, T_interface, F_inertia_x, F_inertia_y, cooling_rate, layer_num
+        # F_inertia_x 在索引8，F_inertia_y 在索引9
+        F_inertia_x = input_features[:, 8]  # [seq_len]
+        F_inertia_y = input_features[:, 9]  # [seq_len]
+
         # Convert to tensors
         sample = {
             'input_features': torch.FloatTensor(input_features),
             'trajectory_targets': torch.FloatTensor(seq['trajectory_targets']),
             'quality_targets': torch.FloatTensor(seq['quality_targets']),
+            'F_inertia_x': torch.FloatTensor(F_inertia_x),
+            'F_inertia_y': torch.FloatTensor(F_inertia_y),
             'data_idx': seq['data_idx'],
             'start_idx': seq['start_idx']
         }

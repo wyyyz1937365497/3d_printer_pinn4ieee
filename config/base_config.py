@@ -128,21 +128,27 @@ class ModelConfig:
 
 @dataclass
 class PhysicsConfig:
-    """物理约束配置"""
-    # 热物理学
-    thermal_diffusivity: float = 1.0
-    heat_source_strength: float = 1.0
-
-    # 振动物理学
-    mass: float = 1.0
-    damping: float = 0.5
-    stiffness: float = 10.0
-
-    # 能量守恒
-    energy_loss_weight: float = 1.0
-
-    # 电机耦合
-    motor_coupling_weight: float = 1.0
+    """物理约束配置 - Ender-3 V2 + PLA参数"""
+    # 机械动力学（二阶系统：m·x'' + c·x' + k·x = F(t)）
+    mass_x: float = 0.485              # kg - X轴有效质量
+    mass_y: float = 0.650              # kg - Y轴有效质量
+    stiffness: float = 150000           # N/m - 皮带刚度
+    damping: float = 25.0               # N·s/m - 阻尼系数
+    
+    # 热物理学（PLA材料）
+    thermal_diffusivity: float = 8.7e-8  # m²/s - PLA热扩散率
+    thermal_conductivity: float = 0.13   # W/(m·K) - 热导率
+    specific_heat: float = 1200          # J/(kg·K) - 比热容
+    material_density: float = 1240       # kg/m³ - PLA密度
+    
+    # 温度约束
+    nozzle_temp: float = 220.0          # °C - 喷嘴温度
+    bed_temp: float = 60.0              # °C - 热床温度
+    glass_transition_temp: float = 60   # °C - 玻璃化转变温度
+    
+    # 损失权重
+    trajectory_loss_weight: float = 20.0   # 轨迹误差权重
+    physics_loss_weight: float = 5.0       # 物理约束权重
 
 
 @dataclass
@@ -165,10 +171,11 @@ class BaseConfig:
     experiment_name: str = "unified_pinn_seq3d"
 
     # 多任务学习的损失权重
-    lambda_quality: float = 1.0
-    lambda_fault: float = 1.0
-    lambda_trajectory: float = 10.0  # 增加轨迹权重以确保它被训练
-    lambda_physics: float = 1.0  # 增加物理损失权重
+    # 基于项目重点：轨迹校正 > 质量预测 > 物理约束
+    lambda_quality: float = 1.0      # 质量预测（内应力、孔隙率等）
+    lambda_fault: float = 0.0         # 故障分类（暂无标签）
+    lambda_trajectory: float = 20.0   # 轨迹校正（主要任务）
+    lambda_physics: float = 5.0       # 物理约束（二阶动力学）
 
     def __post_init__(self):
         """创建必要的目录"""

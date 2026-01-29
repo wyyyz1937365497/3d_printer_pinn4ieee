@@ -187,18 +187,57 @@ class Trainer:
             outputs = self.model(batch_data['input_features'])
             
             # 调整模型输出的形状
-            # 模型输出 displacement_x_seq: [batch, seq_len, 1] -> 取平均
+            # 优先使用序列输出，否则回退到error_x/y
             if 'displacement_x_seq' in outputs:
                 outputs['displacement_x'] = outputs['displacement_x_seq'].mean(dim=1, keepdim=True)  # [batch, 1, 1]
+            elif 'error_x' in outputs:
+                outputs['displacement_x'] = outputs['error_x'].unsqueeze(-1)  # [batch, 1] -> [batch, 1, 1]
+
             if 'displacement_y_seq' in outputs:
                 outputs['displacement_y'] = outputs['displacement_y_seq'].mean(dim=1, keepdim=True)  # [batch, 1, 1]
+            elif 'error_y' in outputs:
+                outputs['displacement_y'] = outputs['error_y'].unsqueeze(-1)  # [batch, 1] -> [batch, 1, 1]
+
             if 'displacement_z_seq' in outputs:
                 outputs['displacement_z'] = outputs['displacement_z_seq'].mean(dim=1, keepdim=True)  # [batch, 1, 1]
+            
+            # 准备物理配置参数
+            physics_params = {
+                'mass_x': self.config.physics.mass_x,
+                'mass_y': self.config.physics.mass_y,
+                'stiffness': self.config.physics.stiffness,
+                'damping': self.config.physics.damping,
+                'thermal_diffusivity': self.config.physics.thermal_diffusivity,
+            }
+            
+            # 准备输入特征（包含惯性力）用于物理损失计算
+            inputs = {
+                'F_inertia_x': batch_data.get('F_inertia_x'),
+                'F_inertia_y': batch_data.get('F_inertia_y'),
+            }
+            
+            # Debug: 在第一个batch时打印信息
+            if batch_idx == 0 and accum_step == 0 and self.current_epoch == 0:
+                print(f"\n[DEBUG Epoch {self.current_epoch+1}] Batch data keys: {list(batch_data.keys())}")
+                print(f"[DEBUG] Targets keys: {list(targets.keys())}")
+                print(f"[DEBUG] Outputs keys: {list(outputs.keys())}")
+                print(f"[DEBUG] Has trajectory targets: {'displacement_x' in targets}")
+                if 'displacement_x' in targets:
+                    print(f"[DEBUG]   displacement_x target: shape={targets['displacement_x'].shape}, range=[{targets['displacement_x'].min():.6f}, {targets['displacement_x'].max():.6f}]")
+                if 'displacement_x' in outputs:
+                    print(f"[DEBUG]   displacement_x output: shape={outputs['displacement_x'].shape}, range=[{outputs['displacement_x'].min():.6f}, {outputs['displacement_x'].max():.6f}]")
+                if 'displacement_x_seq' in outputs:
+                    print(f"[DEBUG]   displacement_x_seq: shape={outputs['displacement_x_seq'].shape}")
+                if 'F_inertia_x' in inputs and inputs['F_inertia_x'] is not None:
+                    print(f"[DEBUG] F_inertia_x shape: {inputs['F_inertia_x'].shape}, range: [{inputs['F_inertia_x'].min():.3f}, {inputs['F_inertia_x'].max():.3f}]")
+                else:
+                    print(f"[DEBUG] F_inertia_x is None or missing!")
             
             losses = self.criterion(
                 outputs,
                 targets,
-                batch_data.get('physics_config', None)
+                physics_params,
+                inputs
             )
             loss = losses['total'] / self.config.training.accumulation_steps
 
@@ -308,10 +347,26 @@ class Trainer:
             if 'displacement_z' not in outputs:
                 outputs['displacement_z'] = torch.zeros(outputs.get('displacement_x', targets.get('displacement_x')).shape, device=self.device)
             
+            # 准备物理配置参数
+            physics_params = {
+                'mass_x': self.config.physics.mass_x,
+                'mass_y': self.config.physics.mass_y,
+                'stiffness': self.config.physics.stiffness,
+                'damping': self.config.physics.damping,
+                'thermal_diffusivity': self.config.physics.thermal_diffusivity,
+            }
+            
+            # 准备输入特征（包含惯性力）用于物理损失计算
+            inputs = {
+                'F_inertia_x': batch_data.get('F_inertia_x'),
+                'F_inertia_y': batch_data.get('F_inertia_y'),
+            }
+            
             losses = self.criterion(
                 outputs,
                 targets,
-                batch_data.get('physics_config', None)
+                physics_params,
+                inputs
             )
 
             # 累积损失

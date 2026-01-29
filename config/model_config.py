@@ -35,10 +35,11 @@ def get_unified_model_config() -> BaseConfig:
     """统一模型（所有任务）的配置"""
     config = BaseConfig()
     config.experiment_name = "unified_model_all_tasks"
-    config.lambda_quality = 1.0
-    config.lambda_fault = 1.0
-    config.lambda_trajectory = 1.0
-    config.lambda_physics = 0.1
+    # 基于物理约束的优化权重
+    config.lambda_quality = 1.0       # 质量预测（基线）
+    config.lambda_fault = 0.0          # 故障分类（无标签数据）
+    config.lambda_trajectory = 20.0    # 轨迹校正（主要任务，20x权重）
+    config.lambda_physics = 5.0        # 物理约束（二阶动力学，5x权重）
     return config
 
 

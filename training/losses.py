@@ -165,35 +165,121 @@ class MultiTaskLoss(nn.Module):
                     inputs: Dict[str, torch.Tensor],
                     physics_config: Optional[Dict] = None) -> torch.Tensor:
         """
-        Compute physics constraint loss
+        计算物理约束损失（基于二阶动力学）
+
+        物理约束：m·x'' + c·x' + k·x = F(t)
+        
+        其中：
+        - m = 质量（0.485 kg for X-axis）
+        - c = 阻尼（25.0 N·s/m）
+        - k = 刚度（150000 N/m）
+        - F(t) = 惯性力（由加速度引起）
 
         Args:
-            predictions: Model predictions
-            inputs: Input features
-            physics_config: Physics configuration parameters
+            predictions: 模型预测
+            inputs: 输入特征（包含参考轨迹和加速度）
+            physics_config: 物理参数配置
 
         Returns:
-            Physics constraint loss
+            物理约束损失
         """
-        from ..utils.physics_utils import compute_physics_loss
-
         if physics_config is None:
             physics_config = {}
 
-        return compute_physics_loss(predictions, {}, inputs, physics_config)
+        # 系统参数
+        m_x = physics_config.get('mass_x', 0.485)       # kg
+        m_y = physics_config.get('mass_y', 0.650)       # kg
+        k = physics_config.get('stiffness', 150000)      # N/m
+        c = physics_config.get('damping', 25.0)          # N·s/m
+
+        total_physics_loss = 0.0
+        loss_count = 0
+
+        # 物理约束 1: 轨迹误差应该满足二阶动力学方程
+        # 如果我们有轨迹预测和参考轨迹，可以验证动力学一致性
+        if 'displacement_x' in predictions and 'F_inertia_x' in inputs:
+            # 预测的X轴误差 [batch, 1, 1]
+            error_x = predictions.get('displacement_x', torch.zeros(1))
+            error_x = error_x.view(error_x.size(0), -1)  # [batch, 1] 保留batch维
+            
+            # 参考的惯性力 - 可能是 [batch] 或 [batch, seq_len]
+            F_inertia_x = inputs.get('F_inertia_x')
+            if F_inertia_x is None:
+                F_inertia_x = torch.zeros_like(error_x)
+            
+            if isinstance(F_inertia_x, torch.Tensor):
+                # 如果是序列形式 [batch, seq_len]，取平均值
+                if F_inertia_x.dim() > 1 and F_inertia_x.size(1) > 1:
+                    F_inertia_x = F_inertia_x.mean(dim=1, keepdim=True)  # [batch, 1]
+                else:
+                    F_inertia_x = F_inertia_x.view(F_inertia_x.size(0), -1)  # 确保 [batch, 1]
+            
+            # 物理约束：F = k * x (简化的弹簧-质量系统)
+            # 对于二阶系统: m·x'' + c·x' + k·x = F
+            # 稳态时: k·x ≈ F
+            if isinstance(error_x, torch.Tensor) and isinstance(F_inertia_x, torch.Tensor):
+                if error_x.size(0) == F_inertia_x.size(0):
+                    # 计算理论位移: x_theory = F / k
+                    x_theory = F_inertia_x / k  # [batch, 1]
+                    
+                    # 使用Smooth L1 Loss
+                    physics_loss_x = F.smooth_l1_loss(error_x, x_theory)
+                    total_physics_loss += physics_loss_x
+                    loss_count += 1
+
+        # 物理约束 2: Y轴动力学
+        if 'displacement_y' in predictions and 'F_inertia_y' in inputs:
+            error_y = predictions.get('displacement_y', torch.zeros(1))
+            error_y = error_y.view(error_y.size(0), -1)  # [batch, 1]
+            
+            F_inertia_y = inputs.get('F_inertia_y')
+            if F_inertia_y is None:
+                F_inertia_y = torch.zeros_like(error_y)
+            
+            if isinstance(F_inertia_y, torch.Tensor):
+                # 如果是序列形式 [batch, seq_len]，取平均值
+                if F_inertia_y.dim() > 1 and F_inertia_y.size(1) > 1:
+                    F_inertia_y = F_inertia_y.mean(dim=1, keepdim=True)  # [batch, 1]
+                else:
+                    F_inertia_y = F_inertia_y.view(F_inertia_y.size(0), -1)  # 确保 [batch, 1]
+            
+            if isinstance(error_y, torch.Tensor) and isinstance(F_inertia_y, torch.Tensor):
+                if error_y.size(0) == F_inertia_y.size(0):
+                    y_theory = F_inertia_y / k
+                    physics_loss_y = F.smooth_l1_loss(error_y, y_theory)
+                    total_physics_loss += physics_loss_y
+                    loss_count += 1
+
+        # 物理约束 3: 质量约束（如果有热相关输出）
+        if 'quality_score' in predictions:
+            # 质量评分应该在 [0, 1] 范围内
+            quality = predictions['quality_score']
+            # 使用约束损失确保输出在有效范围内
+            below_zero = torch.clamp(-quality, min=0)
+            above_one = torch.clamp(quality - 1, min=0)
+            constraint_loss = (below_zero.mean() + above_one.mean())
+            total_physics_loss += constraint_loss * 0.1
+            loss_count += 1
+
+        # 如果没有计算任何损失，返回零
+        if loss_count == 0:
+            device = next(iter(predictions.values())).device if predictions else torch.device('cpu')
+            return torch.tensor(0.0, device=device, requires_grad=True)
+
+        return total_physics_loss / max(loss_count, 1)
 
     def forward(self, predictions: Dict[str, torch.Tensor],
                targets: Dict[str, torch.Tensor],
-               inputs: Optional[Dict[str, torch.Tensor]] = None,
-               physics_config: Optional[Dict] = None) -> Dict[str, torch.Tensor]:
+               physics_config: Optional[Dict] = None,
+               inputs: Optional[Dict[str, torch.Tensor]] = None) -> Dict[str, torch.Tensor]:
         """
         Compute total multi-task loss
 
         Args:
             predictions: Model predictions
             targets: Ground truth targets
-            inputs: Input features (for physics loss)
             physics_config: Physics configuration
+            inputs: Input features (for physics loss)
 
         Returns:
             Dictionary with individual losses and total loss
