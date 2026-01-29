@@ -218,9 +218,12 @@ function simulation_data = run_simulation_with_cached_trajectory(...
     % Step 2: Simulate thermal field (already includes adhesion calculation)
     thermal_results = simulate_thermal_field(trajectory_data, params);
 
+    % Step 2.5: Calculate quality metrics
+    quality_results = calculate_quality_metrics(trajectory_data, thermal_results, params);
+
     % Step 3: Combine results
     simulation_data = combine_results(trajectory_data, trajectory_results, ...
-                                     thermal_results, params);
+                                     thermal_results, quality_results, params);
 
     % Step 4: Save
     if nargin >= 2 && ~isempty(output_file)
@@ -230,7 +233,7 @@ end
 
 %% Helper function: Combine results
 function simulation_data = combine_results(trajectory, trajectory_results, ...
-                                          thermal, params)
+                                          thermal, quality, params)
 
     t = trajectory.time;
     n_points = length(t);
@@ -288,8 +291,12 @@ function simulation_data = combine_results(trajectory, trajectory_results, ...
     simulation_data.temp_gradient_z = thermal.temp_gradient_z(:);
     simulation_data.interlayer_time = thermal.interlayer_time(:);
 
-    % Adhesion
-    simulation_data.adhesion_ratio = thermal.adhesion_ratio(:);
+    % Quality metrics
+    simulation_data.adhesion_ratio = quality.adhesion_ratio(:);
+    simulation_data.internal_stress = quality.internal_stress(:);
+    simulation_data.porosity = quality.porosity(:);
+    simulation_data.dimensional_accuracy = quality.dimensional_accuracy(:);
+    simulation_data.quality_score = quality.quality_score(:);
 
     % G-code features
     simulation_data.is_extruding = trajectory.is_extruding(:);

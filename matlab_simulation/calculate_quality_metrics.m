@@ -101,7 +101,7 @@ function quality_data = calculate_quality_metrics(trajectory_data, thermal_data,
 
     % Combined porosity model (0-100%)
     quality_data.porosity = 100 * (0.3 * temp_factor + 0.3 * speed_factor + 0.4 * adhesion_factor);
-    quality_data.porosity = min(quality_data.porosity, 20);  # Cap at 20% porosity
+    quality_data.porosity = min(quality_data.porosity, 20);  % Cap at 20% porosity
 
     %% 4. Dimensional Accuracy
     % Deviation from intended dimensions due to:
@@ -146,10 +146,10 @@ function quality_data = calculate_quality_metrics(trajectory_data, thermal_data,
     % Porosity: lower is better
     porosity_score = 1 - min(quality_data.porosity / 20, 1.0);
 
-    # Accuracy: lower error is better, cap at 1mm
+    % Accuracy: lower error is better, cap at 1mm
     accuracy_score = 1 - min(quality_data.dimensional_accuracy / 1.0, 1.0);
 
-    # Weighted combination
+    % Weighted combination
     quality_data.quality_score = (0.4 * adhesion_score + ...
                                   0.2 * stress_score + ...
                                   0.2 * porosity_score + ...
