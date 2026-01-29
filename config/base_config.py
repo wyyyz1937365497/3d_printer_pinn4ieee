@@ -80,7 +80,7 @@ class TrainingConfig:
     # 训练技巧
     gradient_clip: float = 1.0
     accumulation_steps: int = 2
-    mixed_precision: bool = True
+    mixed_precision: bool = False
     early_stopping_patience: int = 10
 
     # 检查点保存
@@ -167,8 +167,8 @@ class BaseConfig:
     # 多任务学习的损失权重
     lambda_quality: float = 1.0
     lambda_fault: float = 1.0
-    lambda_trajectory: float = 1.0
-    lambda_physics: float = 0.1
+    lambda_trajectory: float = 10.0  # 增加轨迹权重以确保它被训练
+    lambda_physics: float = 1.0  # 增加物理损失权重
 
     def __post_init__(self):
         """创建必要的目录"""

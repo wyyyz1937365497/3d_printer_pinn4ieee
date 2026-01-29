@@ -120,26 +120,97 @@ class PrinterSimulationDataset(Dataset):
         """
         Load single MATLAB .mat file and extract features
 
+        Supports both v7.3 (HDF5) and older formats.
+
         Returns:
             Dictionary with numpy arrays for each feature
         """
-        mat_data = sio.loadmat(filepath)
+        # Try h5py first for v7.3 format
+        try:
+            import h5py
+            with h5py.File(filepath, 'r') as mat_data:
+                if 'simulation_data' not in mat_data:
+                    print(f"Warning: {filepath} does not contain 'simulation_data'")
+                    return None
 
-        if 'simulation_data' not in mat_data:
-            print(f"Warning: {filepath} does not contain 'simulation_data'")
-            return None
+                sim_data = mat_data['simulation_data']
 
-        sim_data = mat_data['simulation_data'][0, 0]
+                # Extract data - handle v7.3 format differently
+                data = {}
+                for field in sim_data.keys():
+                    value = sim_data[field]
+                    # Check if it's a reference to another dataset (common in v7.3)
+                    if hasattr(value, 'shape') and len(value.shape) > 0:
+                        # For MATLAB v7.3, values are stored transposed
+                        if value.dtype.kind in ['c', 'f', 'i']:  # Complex, float, integer
+                            # Read the actual data
+                            actual_value = value[()]
+                            # Transpose if needed (v7.3 stores data differently)
+                            if len(actual_value.shape) == 2:
+                                actual_value = np.transpose(actual_value)
+                            data[field] = actual_value.flatten() if actual_value.size <= actual_value.shape[-1] else actual_value
+                        elif value.dtype.kind == 'U':  # Unicode strings
+                            data[field] = value[()].item().strip('\x00')
+                        else:
+                            # Handle reference to another dataset
+                            if value.shape == () or len(value.shape) == 1:
+                                # If it's a scalar reference
+                                ref = value[()]
+                                if hasattr(ref, 'shape'):
+                                    data[field] = np.array(ref)
+                                else:
+                                    # It might be a reference to another dataset
+                                    try:
+                                        ref_data = mat_data[ref]
+                                        if len(ref_data.shape) == 2:
+                                            actual_value = np.transpose(ref_data[()])
+                                        else:
+                                            actual_value = ref_data[()]
+                                        data[field] = actual_value.flatten() if actual_value.size <= actual_value.shape[-1] else actual_value
+                                    except:
+                                        # Skip if reference doesn't work
+                                        continue
+                            else:
+                                # Multiple references
+                                actual_values = []
+                                for ref_item in value:
+                                    try:
+                                        ref_data = mat_data[ref_item]
+                                        if len(ref_data.shape) == 2:
+                                            actual_value = np.transpose(ref_data[()])
+                                        else:
+                                            actual_value = ref_data[()]
+                                        actual_values.append(actual_value.flatten() if actual_value.size <= actual_value.shape[-1] else actual_value)
+                                    except:
+                                        continue
+                                if actual_values:
+                                    data[field] = np.hstack(actual_values)
 
-        # Extract data
-        data = {}
-        field_names = sim_data.dtype.names
+        except (Exception,) as e:
+            # Print exception for debugging
+            print(f"Debug: h5py failed for {filepath}, trying scipy: {e}")
+            # Fallback to scipy for older formats
+            try:
+                mat_data = sio.loadmat(filepath)
 
-        for field in field_names:
-            value = sim_data[field][0, 0]
-            if isinstance(value, np.ndarray):
-                value = value.squeeze()
-            data[field] = value
+                if 'simulation_data' not in mat_data:
+                    print(f"Warning: {filepath} does not contain 'simulation_data'")
+                    return None
+
+                sim_data = mat_data['simulation_data'][0, 0]
+
+                # Extract data
+                data = {}
+                field_names = sim_data.dtype.names
+
+                for field in field_names:
+                    value = sim_data[field][0, 0]
+                    if isinstance(value, np.ndarray):
+                        value = value.squeeze()
+                    data[field] = value
+            except Exception as e2:
+                print(f"Warning: Failed to load {filepath} with both h5py and scipy: {e2}")
+                return None
 
         # Validate required features exist
         missing_features = []
@@ -153,11 +224,11 @@ class PrinterSimulationDataset(Dataset):
         # Handle missing quality features (may not be in old MATLAB files)
         # If missing, set to zeros or compute from existing features
         if 'internal_stress' not in data:
-            data['internal_stress'] = np.zeros_like(data['adhesion_ratio'])
+            data['internal_stress'] = np.zeros_like(data.get('adhesion_ratio', np.zeros(1)))
         if 'porosity' not in data:
-            data['porosity'] = np.zeros_like(data['adhesion_ratio'])
+            data['porosity'] = np.zeros_like(data.get('adhesion_ratio', np.zeros(1)))
         if 'dimensional_accuracy' not in data:
-            data['dimensional_accuracy'] = np.zeros_like(data['adhesion_ratio'])
+            data['dimensional_accuracy'] = np.zeros_like(data.get('adhesion_ratio', np.zeros(1)))
         if 'quality_score' not in data:
             # Compute from adhesion_ratio if available
             if 'adhesion_ratio' in data:
@@ -169,12 +240,39 @@ class PrinterSimulationDataset(Dataset):
 
     def _fit_scaler(self):
         """Fit StandardScaler on all input features"""
+        # Check if we have any loaded data
+        if not self.data_list:
+            raise ValueError("No data loaded - all files failed to load. Please check file format and contents.")
+        
         # Collect all data points
         all_features = []
         for data in self.data_list:
-            n_samples = len(data[self.INPUT_FEATURES[0]])
-            features = np.stack([data[feat] for feat in self.INPUT_FEATURES], axis=1)
-            all_features.append(features)
+            if self.INPUT_FEATURES[0] in data and len(data[self.INPUT_FEATURES[0]]) > 0:
+                n_samples = len(data[self.INPUT_FEATURES[0]])
+                
+                # Stack features, ensuring proper shape for scaler
+                feature_arrays = []
+                for feat in self.INPUT_FEATURES:
+                    if feat in data:
+                        feat_data = data[feat]
+                        # Ensure the feature data is properly shaped
+                        if feat_data.ndim > 1:
+                            # If it's multi-dimensional, flatten or squeeze appropriately
+                            feat_data = np.squeeze(feat_data)
+                        feature_arrays.append(feat_data)
+                    else:
+                        # If feature is missing, append zeros
+                        feature_arrays.append(np.zeros(n_samples))
+                
+                # Stack features along the last axis to form [n_samples, n_features]
+                features = np.stack(feature_arrays, axis=1)
+                
+                # Ensure features array is 2D before appending
+                if features.ndim == 2:
+                    all_features.append(features)
+
+        if not all_features:
+            raise ValueError("No valid features found in loaded data - please check data format.")
 
         all_features = np.vstack(all_features)
         self.scaler.fit(all_features)
@@ -185,27 +283,50 @@ class PrinterSimulationDataset(Dataset):
         sequences = []
 
         for data_idx, data in enumerate(self.data_list):
-            n_samples = len(data[self.INPUT_FEATURES[0]])
-
+            # Find the minimum length across all required features to ensure consistency
+            lengths = []
+            for feat in self.INPUT_FEATURES + self.OUTPUT_TRAJECTORY + self.OUTPUT_QUALITY:
+                if feat in data:
+                    lengths.append(len(data[feat]))
+            if not lengths:
+                continue  # Skip if no required features are present
+                
+            min_length = min(lengths)
+            if min_length < self.seq_len + self.pred_len:
+                print(f"Warning: Data file {data_idx} has length {min_length} which is too short for required sequence length {self.seq_len + self.pred_len}, skipping...")
+                continue
+            
             # Create sequences
-            for i in range(0, n_samples - self.seq_len - self.pred_len + 1, self.stride):
+            for i in range(0, min_length - self.seq_len - self.pred_len + 1, self.stride):
                 # Extract input sequence
-                input_features = np.stack([
-                    data[feat][i:i+self.seq_len]
-                    for feat in self.INPUT_FEATURES
-                ], axis=1)  # [seq_len, 12]
+                input_features_list = []
+                for feat in self.INPUT_FEATURES:
+                    feat_data = data[feat]
+                    if feat_data.ndim > 1:
+                        feat_data = np.squeeze(feat_data)
+                    input_features_list.append(feat_data[i:i+self.seq_len])
+                
+                input_features = np.stack(input_features_list, axis=1)  # [seq_len, 12]
 
                 # Extract trajectory error targets
-                trajectory_targets = np.stack([
-                    data[feat][i+self.seq_len:i+self.seq_len+self.pred_len]
-                    for feat in self.OUTPUT_TRAJECTORY
-                ], axis=1)  # [pred_len, 2]
+                trajectory_targets_list = []
+                for feat in self.OUTPUT_TRAJECTORY:
+                    feat_data = data[feat]
+                    if feat_data.ndim > 1:
+                        feat_data = np.squeeze(feat_data)
+                    trajectory_targets_list.append(feat_data[i+self.seq_len:i+self.seq_len+self.pred_len])
+                
+                trajectory_targets = np.stack(trajectory_targets_list, axis=1)  # [pred_len, 2]
 
                 # Extract quality targets (use last timestep of prediction)
-                quality_targets = np.stack([
-                    data[feat][i+self.seq_len+self.pred_len-1]
-                    for feat in self.OUTPUT_QUALITY
-                ])  # [5]
+                quality_targets = []
+                for feat in self.OUTPUT_QUALITY:
+                    feat_data = data[feat]
+                    if feat_data.ndim > 1:
+                        feat_data = np.squeeze(feat_data)
+                    quality_targets.append(feat_data[i+self.seq_len+self.pred_len-1])
+                
+                quality_targets = np.array(quality_targets)  # [5]
 
                 sequences.append({
                     'input_features': input_features,

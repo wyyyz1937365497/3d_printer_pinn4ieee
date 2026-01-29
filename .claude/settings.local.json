@@ -8,7 +8,9 @@
       "mcp__web-search-prime__webSearchPrime",
       "Bash(awk:*)",
       "Bash(grep:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(conda run:*)",
+      "Bash(G:\\\\Miniconda3\\\\envs\\\\3dprint\\\\python.exe check_quality_features.py)"
     ]
   }
 }

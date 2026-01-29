@@ -7,12 +7,13 @@ import time
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import GradScaler, autocast
+from contextlib import nullcontext
 from typing import Dict, Optional, Any, List
 from tqdm import tqdm
 
-from ..utils.logger import Logger
-from .losses import MultiTaskLoss
+from utils.logger import Logger
+from training.losses import MultiTaskLoss
 
 
 class Trainer:
@@ -63,7 +64,7 @@ class Trainer:
         self.scheduler = self._create_scheduler()
 
         # 为混合精度设置梯度缩放器
-        self.scaler = GradScaler() if config.training.mixed_precision else None
+        self.scaler = GradScaler('cuda') if config.training.mixed_precision else None
 
         # 设置日志记录器
         self.logger = Logger(
@@ -143,6 +144,7 @@ class Trainer:
             包含训练指标的字典
         """
         self.model.train()
+        
         total_loss = 0.0
         loss_components = {
             'quality': 0.0,
@@ -153,39 +155,63 @@ class Trainer:
 
         num_batches = len(self.train_loader)
         progress_bar = tqdm(self.train_loader, desc=f"周期 {self.current_epoch + 1}")
+        accum_step = 0
 
         for batch_idx, batch in enumerate(progress_bar):
+            # 在累积开始时清零梯度
+            if accum_step == 0:
+                self.optimizer.zero_grad()
+            
             # 将批次移到设备上
-            inputs = {k: v.to(self.device) if isinstance(v, torch.Tensor) else v
+            batch_data = {k: v.to(self.device) if isinstance(v, torch.Tensor) else v
                      for k, v in batch.items()}
 
-            # 前向传播
-            if self.config.training.mixed_precision:
-                with autocast():
-                    outputs = self.model(inputs['features'])
-                    losses = self.criterion(
-                        outputs,
-                        inputs,
-                        inputs.get('physics_config', None)
-                    )
-                    loss = losses['total'] / self.config.training.accumulation_steps
-            else:
-                outputs = self.model(inputs['features'])
-                losses = self.criterion(
-                    outputs,
-                    inputs,
-                    inputs.get('physics_config', None)
-                )
-                loss = losses['total'] / self.config.training.accumulation_steps
+            # 构建目标字典 - 将数据集的格式转换为损失函数期望的格式
+            targets = {}
+            
+            # 处理轨迹目标 trajectory_targets: [batch, pred_len, 2] -> displacement_x/y
+            if 'trajectory_targets' in batch_data and batch_data['trajectory_targets'].numel() > 0:
+                traj_targets = batch_data['trajectory_targets']  # [batch, pred_len, 2]
+                # 计算平均误差作为目标（更稳定）
+                targets['displacement_x'] = traj_targets[:, :, 0:1].mean(dim=1, keepdim=True)  # [batch, 1, 1]
+                targets['displacement_y'] = traj_targets[:, :, 1:2].mean(dim=1, keepdim=True)  # [batch, 1, 1]
+                targets['displacement_z'] = torch.zeros_like(targets['displacement_x'])  # No z in data
+            
+            # 处理质量目标 quality_targets: [batch, 5] 
+            if 'quality_targets' in batch_data and batch_data['quality_targets'].numel() > 0:
+                quality_targets = batch_data['quality_targets']  # [batch, 5]
+                # 质量指标的顺序: adhesion_ratio, internal_stress, porosity, dimensional_accuracy, quality_score
+                targets['quality_score'] = quality_targets[:, -1:]  # [batch, 1]
 
-            # 反向传播
+            # 前向传播和损失计算
+            outputs = self.model(batch_data['input_features'])
+            
+            # 调整模型输出的形状
+            # 模型输出 displacement_x_seq: [batch, seq_len, 1] -> 取平均
+            if 'displacement_x_seq' in outputs:
+                outputs['displacement_x'] = outputs['displacement_x_seq'].mean(dim=1, keepdim=True)  # [batch, 1, 1]
+            if 'displacement_y_seq' in outputs:
+                outputs['displacement_y'] = outputs['displacement_y_seq'].mean(dim=1, keepdim=True)  # [batch, 1, 1]
+            if 'displacement_z_seq' in outputs:
+                outputs['displacement_z'] = outputs['displacement_z_seq'].mean(dim=1, keepdim=True)  # [batch, 1, 1]
+            
+            losses = self.criterion(
+                outputs,
+                targets,
+                batch_data.get('physics_config', None)
+            )
+            loss = losses['total'] / self.config.training.accumulation_steps
+
+            # 反向传播（每次都要做，用于梯度累积）
             if self.scaler is not None:
                 self.scaler.scale(loss).backward()
             else:
                 loss.backward()
+            
+            accum_step += 1
 
-            # 梯度累积
-            if (batch_idx + 1) % self.config.training.accumulation_steps == 0:
+            # 梯度累积 - 只在累积完成或达到最后一个批次时更新
+            if accum_step == self.config.training.accumulation_steps or (batch_idx + 1) == num_batches:
                 # 梯度裁剪
                 if self.scaler is not None:
                     self.scaler.unscale_(self.optimizer)
@@ -200,8 +226,8 @@ class Trainer:
                     self.scaler.update()
                 else:
                     self.optimizer.step()
-
-                self.optimizer.zero_grad()
+                
+                accum_step = 0
 
             # 累积损失
             total_loss += losses['total'].item()
@@ -250,15 +276,42 @@ class Trainer:
 
         for batch in data_loader:
             # 将批次移到设备上
-            inputs = {k: v.to(self.device) if isinstance(v, torch.Tensor) else v
+            batch_data = {k: v.to(self.device) if isinstance(v, torch.Tensor) else v
                      for k, v in batch.items()}
 
+            # 构建目标字典 - 将数据集的格式转换为损失函数期望的格式
+            targets = {}
+            
+            # 处理轨迹目标 trajectory_targets: [batch, pred_len, 2] -> displacement_x/y
+            if 'trajectory_targets' in batch_data and batch_data['trajectory_targets'].numel() > 0:
+                traj_targets = batch_data['trajectory_targets']  # [batch, pred_len, 2]
+                # 计算平均误差作为目标（更稳定）
+                targets['displacement_x'] = traj_targets[:, :, 0:1].mean(dim=1, keepdim=True)  # [batch, 1, 1]
+                targets['displacement_y'] = traj_targets[:, :, 1:2].mean(dim=1, keepdim=True)  # [batch, 1, 1]
+                targets['displacement_z'] = torch.zeros_like(targets['displacement_x'])  # No z in data
+            
+            # 处理质量目标 quality_targets: [batch, 5] 
+            if 'quality_targets' in batch_data and batch_data['quality_targets'].numel() > 0:
+                quality_targets = batch_data['quality_targets']  # [batch, 5]
+                # 质量指标的顺序: adhesion_ratio, internal_stress, porosity, dimensional_accuracy, quality_score
+                targets['quality_score'] = quality_targets[:, -1:]  # [batch, 1]
+
             # 前向传播
-            outputs = self.model(inputs['features'])
+            outputs = self.model(batch_data['input_features'])
+            
+            # 调整模型输出的形状，将error_x/y映射到displacement_x/y
+            # 模型输出 error_x/y: [batch, 1] -> 需要扩展为 [batch, 1, 1]
+            if 'error_x' in outputs:
+                outputs['displacement_x'] = outputs['error_x'].unsqueeze(-1)  # [batch, 1] -> [batch, 1, 1]
+            if 'error_y' in outputs:
+                outputs['displacement_y'] = outputs['error_y'].unsqueeze(-1)  # [batch, 1] -> [batch, 1, 1]
+            if 'displacement_z' not in outputs:
+                outputs['displacement_z'] = torch.zeros(outputs.get('displacement_x', targets.get('displacement_x')).shape, device=self.device)
+            
             losses = self.criterion(
                 outputs,
-                inputs,
-                inputs.get('physics_config', None)
+                targets,
+                batch_data.get('physics_config', None)
             )
 
             # 累积损失

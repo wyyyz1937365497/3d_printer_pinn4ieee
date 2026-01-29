@@ -83,7 +83,9 @@ class MultiTaskLoss(nn.Module):
 
         if losses:
             return sum(losses) / len(losses)
-        return torch.tensor(0.0, device=predictions['rul'].device)
+        # 如果没有找到任何预期的损失项，则返回0.0，使用targets字典中的任意tensor获取设备信息
+        device = next(iter(targets.values())).device if targets else torch.device('cpu')
+        return torch.tensor(0.0, device=device)
 
     def fault_loss(self, predictions: Dict[str, torch.Tensor],
                   targets: Dict[str, torch.Tensor]) -> torch.Tensor:
@@ -98,7 +100,9 @@ class MultiTaskLoss(nn.Module):
             Fault classification loss
         """
         if 'fault_logits' not in predictions or 'fault_label' not in targets:
-            return torch.tensor(0.0, device=list(predictions.values())[0].device)
+            # 使用targets字典中的任意tensor获取设备信息，保证一致性
+            device = next(iter(targets.values())).device if targets else torch.device('cpu')
+            return torch.tensor(0.0, device=device, requires_grad=True)
 
         return self.ce_loss(predictions['fault_logits'], targets['fault_label'])
 
@@ -118,21 +122,45 @@ class MultiTaskLoss(nn.Module):
 
         # Use Smooth L1 loss for displacement (more robust to outliers)
         if 'displacement_x' in predictions and 'displacement_x' in targets:
-            dx_loss = self.smooth_l1_loss(predictions['displacement_x'], targets['displacement_x'])
+            pred_x = predictions['displacement_x']
+            target_x = targets['displacement_x']
+            # Flatten if needed to match dimensions
+            if pred_x.dim() > 2:
+                pred_x = pred_x.reshape(pred_x.shape[0], -1)
+            if target_x.dim() > 2:
+                target_x = target_x.reshape(target_x.shape[0], -1)
+            dx_loss = self.smooth_l1_loss(pred_x, target_x)
             losses.append(dx_loss)
 
         if 'displacement_y' in predictions and 'displacement_y' in targets:
-            dy_loss = self.smooth_l1_loss(predictions['displacement_y'], targets['displacement_y'])
+            pred_y = predictions['displacement_y']
+            target_y = targets['displacement_y']
+            # Flatten if needed to match dimensions
+            if pred_y.dim() > 2:
+                pred_y = pred_y.reshape(pred_y.shape[0], -1)
+            if target_y.dim() > 2:
+                target_y = target_y.reshape(target_y.shape[0], -1)
+            dy_loss = self.smooth_l1_loss(pred_y, target_y)
             losses.append(dy_loss)
 
         if 'displacement_z' in predictions and 'displacement_z' in targets:
-            dz_loss = self.smooth_l1_loss(predictions['displacement_z'], targets['displacement_z'])
-            losses.append(dz_loss)
+            pred_z = predictions['displacement_z']
+            target_z = targets['displacement_z']
+            # Flatten if needed to match dimensions
+            if pred_z.dim() > 2:
+                pred_z = pred_z.reshape(pred_z.shape[0], -1)
+            if target_z.dim() > 2:
+                target_z = target_z.reshape(target_z.shape[0], -1)
+            # 检查是否全为 0
+            if target_z.abs().max().item() > 1e-6:
+                dz_loss = self.smooth_l1_loss(pred_z, target_z)
+                losses.append(dz_loss)
 
         if losses:
             return sum(losses) / len(losses)
-        return torch.tensor(0.0, device=list(predictions.values())[0].device)
-
+        # 如果没有找到任何预期的损失项，则返回0.0，使用targets字典中的任意tensor获取设备信息
+        device = next(iter(targets.values())).device if targets else torch.device('cpu')
+        return torch.tensor(0.0, device=device)
     def physics_loss(self, predictions: Dict[str, torch.Tensor],
                     inputs: Dict[str, torch.Tensor],
                     physics_config: Optional[Dict] = None) -> torch.Tensor:

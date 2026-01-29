@@ -125,7 +125,7 @@ def quick_train(data_dir, epochs=10, batch_size=32):
 
     # Create model
     print("Creating model...")
-    model = UnifiedPINNSeq3D(config.model).to(device)
+    model = UnifiedPINNSeq3D(config).to(device)
 
     # Count parameters
     n_params = sum(p.numel() for p in model.parameters())
@@ -133,18 +133,16 @@ def quick_train(data_dir, epochs=10, batch_size=32):
     print()
 
     # Create trainer
-    trainer = Trainer(model, config)
+    trainer = Trainer(model, config, train_loader, val_loader)
 
     # Train
     print("Starting training...")
     print()
 
-    history = trainer.train(
-        train_loader,
-        val_loader,
-        epochs=epochs,
-        save_dir='checkpoints/quick_train'
-    )
+    # 更新配置中的训练参数
+    config.training.num_epochs = epochs
+    
+    history = trainer.train()
 
     print()
     print("=" * 60)
