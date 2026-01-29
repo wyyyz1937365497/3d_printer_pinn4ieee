@@ -179,16 +179,6 @@ python experiments/train_trajectory_correction.py \
     --batch_size 64
 ```
 
-# 3. 创建模型
-model = UnifiedPINNSeq3D(config)
-
-# 4. 创建trainer
-trainer = Trainer(model, config, train_loader, val_loader)
-
-# 5. 训练
-history = trainer.train()
-```
-
 ---
 
 ## 完整工作流程
