@@ -330,13 +330,16 @@ fprintf('使用GPU: %d\n', gpu_info.use_gpu);
 
 ## 📝 更新日志
 
-### v3.0 (2026-01-28) - 质量特征与数据加载
+### v3.1 (2026-01-29) - 任务拆分与脚本更新
 
 **新增**:
 - ✅ `calculate_quality_metrics.m` - 计算隐式质量参数（内应力、孔隙率、尺寸精度、质量评分）
 - ✅ `data/simulation/dataset.py` - Python数据集类，直接加载MATLAB .mat文件
 - ✅ `data/scripts/prepare_training_data.py` - 数据预处理pipeline
-- ✅ `experiments/quick_train_simulation.py` - 快速训练脚本
+- ✅ `experiments/train_implicit_state_tcn.py` - 隐式状态推断训练（TCN）
+- ✅ `experiments/train_trajectory_correction.py` - 轨迹误差修正训练
+- ✅ `experiments/evaluate_implicit_state_tcn.py` - 隐式状态评估
+- ✅ `experiments/evaluate_trajectory_model.py` - 轨迹误差评估
 - ✅ `docs/SIMULATION_DATA_GUIDE.md` - 完整使用指南
 
 **改进**:

@@ -161,52 +161,23 @@ print(sample.keys())
 
 ## 模型训练
 
-### 1️⃣ 快速训练（统一模型）
+### 1️⃣ 隐式状态推断模型（TCN）
 
 ```bash
-python experiments/quick_train_simulation.py \
+python experiments/train_implicit_state_tcn.py \
     --data_dir data_simulation_3DBenchy_PLA_1h28m_layers_* \
     --epochs 50 \
     --batch_size 64
 ```
 
-### 2️⃣ 隐式状态推断模型
+### 2️⃣ 轨迹误差修正模型
 
 ```bash
-python experiments/train_implicit_state.py \
-    --data_dir data_simulation_3DBenchy_PLA_1h28m_layers_* \
-    --epochs 50 \
-    --batch_size 64
-
-### 3️⃣ 轨迹误差修正模型
-
 python experiments/train_trajectory_correction.py \
     --data_dir data_simulation_3DBenchy_PLA_1h28m_layers_* \
     --epochs 50 \
     --batch_size 64
 ```
-
-### 3️⃣ 自定义训练
-
-```python
-from models import UnifiedPINNSeq3D
-from config import get_config
-from training import Trainer
-from data.simulation import create_dataloaders
-
-# 1. 加载配置
-config = get_config(preset='unified')
-
-# 2. 创建dataloaders
-train_loader, val_loader, test_loader, scaler = create_dataloaders(
-    train_dir='data_simulation_3DBenchy_PLA_1h28m_layers_*',
-    val_dir='data_simulation_3DBenchy_PLA_1h28m_layers_*',
-    test_dir='data_simulation_3DBenchy_PLA_1h28m_layers_*',
-    batch_size=config.training.batch_size,
-    seq_len=config.data.seq_len,
-    pred_len=config.data.pred_len,
-    stride=config.data.stride
-)
 
 # 3. 创建模型
 model = UnifiedPINNSeq3D(config)
@@ -243,7 +214,12 @@ python data/scripts/prepare_training_data.py \
 ### Step 3: 训练模型
 
 ```bash
-python experiments/quick_train_simulation.py \
+python experiments/train_implicit_state_tcn.py \
+    --data_dir data_simulation_3DBenchy_PLA_1h28m_layers_* \
+    --epochs 100 \
+    --batch_size 64
+
+python experiments/train_trajectory_correction.py \
     --data_dir data_simulation_3DBenchy_PLA_1h28m_layers_* \
     --epochs 100 \
     --batch_size 64
@@ -252,8 +228,12 @@ python experiments/quick_train_simulation.py \
 ### Step 4: 评估模型
 
 ```bash
-python experiments/evaluate_model.py \
-    --model_path checkpoints/unified_model_all_tasks/best_model.pth \
+python experiments/evaluate_implicit_state_tcn.py \
+    --model_path checkpoints/implicit_state_tcn/best_model.pth \
+    --data_path data_simulation_3DBenchy_PLA_1h28m_layers_*/layer*.mat
+
+python experiments/evaluate_trajectory_model.py \
+    --model_path checkpoints/trajectory_correction/best_model.pth \
     --data_path data_simulation_3DBenchy_PLA_1h28m_layers_*/layer*.mat
 ```
 
@@ -347,14 +327,17 @@ input_features = input_features + noise
 
 ## 模型评估
 
-### 评估指标
+### 评估脚本
 
-#### 轨迹误差预测 (2个输出)
-```python
-# 误差向量预测
-- RMSE (Root Mean Squared Error): 目标 < 0.05 mm
-- MAE (Mean Absolute Error): 目标 < 0.03 mm
-- 最大误差: 目标 < 0.1 mm
+```bash
+python experiments/evaluate_implicit_state_tcn.py \
+    --model_path checkpoints/implicit_state_tcn/best_model.pth \
+    --data_path data_simulation_3DBenchy_PLA_1h28m_layers_*/layer*.mat
+
+python experiments/evaluate_trajectory_model.py \
+    --model_path checkpoints/trajectory_correction/best_model.pth \
+    --data_path data_simulation_3DBenchy_PLA_1h28m_layers_*/layer*.mat
+```
 ```
 
 #### 质量特征预测 (5个输出)
@@ -383,20 +366,22 @@ input_features = input_features + noise
 ### 评估脚本
 
 ```bash
-# 完整评估pipeline
-# 快速评估
-python experiments/evaluate_model.py \
-    --model_path checkpoints/unified_model_all_tasks/best_model.pth \
+python experiments/evaluate_implicit_state_tcn.py \
+    --model_path checkpoints/implicit_state_tcn/best_model.pth \
+    --data_path data_simulation_3DBenchy_PLA_1h28m_layers_*/layer*.mat
+
+python experiments/evaluate_trajectory_model.py \
+    --model_path checkpoints/trajectory_correction/best_model.pth \
     --data_path data_simulation_3DBenchy_PLA_1h28m_layers_*/layer*.mat
 ```
 
 ### 可视化结果
 
 评估后生成的图表：
-- `quality_predictions.png` - 质量特征预测vs真实值散点图
-- `trajectory_comparison.png` - 参考轨迹vs实际轨迹对比
-- `error_distribution.png` - 误差分布直方图
-- `confusion_matrix.png` - 质量分类混淆矩阵
+- `implicit_state_tcn_pred_vs_target.png` - 隐式参数预测vs真实值散点图
+- `implicit_state_tcn_error_hist.png` - 隐式参数误差直方图
+- `trajectory_pred_vs_target.png` - 轨迹误差预测vs真实值散点图
+- `trajectory_error_hist.png` - 轨迹误差分布直方图
 
 ---
 

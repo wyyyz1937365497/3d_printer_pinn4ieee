@@ -34,14 +34,8 @@ collect_data
 ### 2. 训练模型（Python）
 
 ```bash
-# 统一模型快速训练（仿真 .mat 数据）
-python experiments/quick_train_simulation.py \
-    --data_dir data_simulation_3DBenchy_PLA_1h28m_layers_* \
-    --epochs 50 \
-    --batch_size 64
-
-# 隐式状态推断模型
-python experiments/train_implicit_state.py \
+# 隐式状态推断模型（TCN）
+python experiments/train_implicit_state_tcn.py \
     --data_dir data_simulation_3DBenchy_PLA_1h28m_layers_* \
     --epochs 50 \
     --batch_size 64
@@ -56,8 +50,12 @@ python experiments/train_trajectory_correction.py \
 ### 3. 评估模型
 
 ```bash
-python experiments/evaluate_model.py \
-    --model_path checkpoints/unified_model_all_tasks/best_model.pth \
+python experiments/evaluate_implicit_state_tcn.py \
+    --model_path checkpoints/implicit_state_tcn/best_model.pth \
+    --data_path data_simulation_3DBenchy_PLA_1h28m_layers_*/layer*.mat
+
+python experiments/evaluate_trajectory_model.py \
+    --model_path checkpoints/trajectory_correction/best_model.pth \
     --data_path data_simulation_3DBenchy_PLA_1h28m_layers_*/layer*.mat
 ```
 
@@ -107,7 +105,10 @@ python experiments/evaluate_model.py \
 │   └── THESIS_DOCUMENTATION.md # 论文写作参考
 │
 └── experiments/                 # Python训练实验
-    └── train_unified_model.py   # 统一模型训练
+    ├── train_implicit_state_tcn.py
+    ├── train_trajectory_correction.py
+    ├── evaluate_implicit_state_tcn.py
+    └── evaluate_trajectory_model.py
 ```
 
 ---

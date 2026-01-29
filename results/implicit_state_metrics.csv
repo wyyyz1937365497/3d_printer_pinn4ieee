@@ -1,0 +1,16 @@
+metric,value
+adhesion_strength_mae,0.27737560868263245
+adhesion_strength_rmse,0.28886133432388306
+adhesion_strength_r2,0.03283858299255371
+internal_stress_mae,1.6672993898391724
+internal_stress_rmse,1.936222791671753
+internal_stress_r2,0.16706591844558716
+porosity_mae,1.714035987854004
+porosity_rmse,1.8848739862442017
+porosity_r2,0.19731783866882324
+dimensional_accuracy_mae,0.026092568412423134
+dimensional_accuracy_rmse,0.036322206258773804
+dimensional_accuracy_r2,-2.9525179862976074
+quality_score_mae,0.13561415672302246
+quality_score_rmse,0.14029903709888458
+quality_score_r2,0.050861895084381104
