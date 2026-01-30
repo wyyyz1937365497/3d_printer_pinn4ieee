@@ -47,8 +47,6 @@ logs/*
 *.log
 
 # Checkpoints
-checkpoints/*.pth
-checkpoints/*/
 !checkpoints/.gitkeep
 
 # Outputs
