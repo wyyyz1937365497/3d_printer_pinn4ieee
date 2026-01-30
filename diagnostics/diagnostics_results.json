@@ -1,0 +1,15 @@
+{
+  "recommended_tasks": [
+    "internal_stress",
+    "adhesion_ratio",
+    "porosity"
+  ],
+  "predictability_scores": {
+    "adhesion_ratio": 2,
+    "internal_stress": 5,
+    "porosity": 2,
+    "dimensional_accuracy": 2,
+    "quality_score": 2
+  },
+  "max_correlations": {
+    "adhesion_ratio": 

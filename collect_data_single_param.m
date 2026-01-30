@@ -178,7 +178,8 @@ for gcode_idx = 1:length(gcode_config)
         layer_str = sprintf('layer%d', layer_nums);
     else
         layers_to_collect = layer_nums;
-        layer_str = sprintf('layers_%s', strrep(mat2str(layer_nums), ' ', '_'));
+        n_layers = length(layers_to_collect);
+        layer_str = sprintf('sampled_%dlayers', n_layers);
     end
 
     fprintf('目标层：%s\n', mat2str(layers_to_collect));
@@ -278,7 +279,8 @@ for i = 1:length(gcode_config)
     if isscalar(layer_nums)
         layer_str = sprintf('layer%d', layer_nums);
     else
-        layer_str = sprintf('layers_%s', strrep(mat2str(layer_nums), ' ', '_'));
+        n_layers = length(layer_nums);
+        layer_str = sprintf('sampled_%dlayers', n_layers);
     end
 
     fprintf('  data_simulation_%s_%s/\n', name, layer_str);
