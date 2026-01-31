@@ -75,19 +75,36 @@ params.motion.max_velocity = 500;       % mm/s - 最大速度（来自M203）
 % --- 系统动力学参数 ---
 % 用于轨迹误差建模的二阶系统参数
 % m·x'' + c·x' + k·x = F(t)
+%
+% *** 更新说明 (2025-01-30) ***
+% 基于以下文献的实验数据更新参数:
+% 1. Wozniak et al., Applied Sciences 2025 - 挤出头质量和阻尼
+% 2. Wang et al., Robotics 2018 - GT2皮带刚度和预张力
+% 3. Grgić et al., Processes 2023 - Ender-3实际精度验证
+%
+% 目标: 生成±50-100μm的轨迹误差,符合真实Ender-3精度,使模型能够学习
+%
+% 关键变化:
+% - 刚度: 150000 → 20000 N/m (基于Wang et al. 2018 GT2带实验数据)
+% - 质量: 0.485 → 0.35 kg (基于Wozniak et al. 2025 挤出头测量)
+% - 阻尼: 25.0 → 20.0 N·s/m (匹配新刚度的阻尼比)
+%
+% 预期效果:
+% - 固有频率: 88 Hz → 38 Hz (更真实)
+% - 误差幅值: ±2-4μm → ±50-100μm (符合实际)
 
 % X轴动力学
-params.dynamics.x.mass = 0.485;         % kg - 有效质量
-params.dynamics.x.stiffness = 150000;   % N/m - 皮带刚度
-params.dynamics.x.damping = 25.0;       % N·s/m - 阻尼系数
+params.dynamics.x.mass = 0.35;           % kg - 挤出头质量 (Wozniak et al. 2025)
+params.dynamics.x.stiffness = 20000;     % N/m - GT2带有效刚度 (Wang et al. 2018)
+params.dynamics.x.damping = 20.0;        % N·s/m - 结构阻尼 (Wozniak et al. 2025)
 params.dynamics.x.natural_freq = sqrt(params.dynamics.x.stiffness / params.dynamics.x.mass);  % rad/s
 params.dynamics.x.damping_ratio = params.dynamics.x.damping / (2 * sqrt(params.dynamics.x.mass * params.dynamics.x.stiffness));
 params.dynamics.x.settling_time = 4 / (params.dynamics.x.damping_ratio * params.dynamics.x.natural_freq);  % s
 
 % Y轴动力学
-params.dynamics.y.mass = 0.650;         % kg - 有效质量
-params.dynamics.y.stiffness = 150000;   % N/m - 皮带刚度
-params.dynamics.y.damping = 25.0;       % N·s/m - 阻尼系数
+params.dynamics.y.mass = 0.45;           % kg - Y轴运动质量 (包含打印台,估算)
+params.dynamics.y.stiffness = 20000;     % N/m - GT2带有效刚度 (Wang et al. 2018)
+params.dynamics.y.damping = 20.0;        % N·s/m - 结构阻尼 (Wozniak et al. 2025)
 params.dynamics.y.natural_freq = sqrt(params.dynamics.y.stiffness / params.dynamics.y.mass);  % rad/s
 params.dynamics.y.damping_ratio = params.dynamics.y.damping / (2 * sqrt(params.dynamics.y.mass * params.dynamics.y.stiffness));
 params.dynamics.y.settling_time = 4 / (params.dynamics.y.damping_ratio * params.dynamics.y.natural_freq);  % s

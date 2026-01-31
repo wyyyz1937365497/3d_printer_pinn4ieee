@@ -15,7 +15,11 @@
       "Bash(iconv:*)",
       "Bash(find:*)",
       "Bash(python3:*)",
-      "Bash(tail:*)"
+      "Bash(tail:*)",
+      "Bash(conda:*)",
+      "Bash(tee:*)",
+      "mcp__web-reader__webReader",
+      "Bash(chmod:*)"
     ]
   }
 }

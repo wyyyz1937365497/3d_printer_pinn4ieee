@@ -92,9 +92,13 @@ class TrajectoryTrainer:
             # Metrics
             total_loss += loss.item() * input_features.size(0)
 
-            # Per-axis errors
-            x_error = nn.functional.l1_loss(outputs['error_x'], trajectory_targets[:, :, 0:1])
-            y_error = nn.functional.l1_loss(outputs['error_y'], trajectory_targets[:, :, 1:2])
+            # Per-axis errors - support both naming conventions, use last timestep
+            if 'error_x' in outputs:
+                x_error = nn.functional.l1_loss(outputs['error_x'][:, -1:, :], trajectory_targets[:, :, 0:1])
+                y_error = nn.functional.l1_loss(outputs['error_y'][:, -1:, :], trajectory_targets[:, :, 1:2])
+            else:
+                x_error = nn.functional.l1_loss(outputs['displacement_x_seq'][:, -1:, :], trajectory_targets[:, :, 0:1])
+                y_error = nn.functional.l1_loss(outputs['displacement_y_seq'][:, -1:, :], trajectory_targets[:, :, 1:2])
             total_x_error += x_error.item() * input_features.size(0)
             total_y_error += y_error.item() * input_features.size(0)
 
@@ -141,8 +145,13 @@ class TrajectoryTrainer:
 
             total_loss += loss.item() * input_features.size(0)
 
-            x_error = nn.functional.l1_loss(outputs['error_x'], trajectory_targets[:, :, 0:1])
-            y_error = nn.functional.l1_loss(outputs['error_y'], trajectory_targets[:, :, 1:2])
+            # Per-axis errors - support both naming conventions, use last timestep
+            if 'error_x' in outputs:
+                x_error = nn.functional.l1_loss(outputs['error_x'][:, -1:, :], trajectory_targets[:, :, 0:1])
+                y_error = nn.functional.l1_loss(outputs['error_y'][:, -1:, :], trajectory_targets[:, :, 1:2])
+            else:
+                x_error = nn.functional.l1_loss(outputs['displacement_x_seq'][:, -1:, :], trajectory_targets[:, :, 0:1])
+                y_error = nn.functional.l1_loss(outputs['displacement_y_seq'][:, -1:, :], trajectory_targets[:, :, 1:2])
             total_x_error += x_error.item() * input_features.size(0)
             total_y_error += y_error.item() * input_features.size(0)
 
@@ -166,11 +175,20 @@ class TrajectoryLoss(nn.Module):
         Compute combined trajectory loss
 
         Args:
-            predictions: Dict with 'error_x' and 'error_y' [B, T, 1]
-            targets: Trajectory targets [B, T, 2]
+            predictions: Dict with 'error_x'/'error_y' or 'displacement_x_seq'/'displacement_y_seq' [B, T, 1]
+            targets: Trajectory targets [B, pred_len, 2]
         """
-        loss_x = nn.functional.mse_loss(predictions['error_x'], targets[:, :, 0:1])
-        loss_y = nn.functional.mse_loss(predictions['error_y'], targets[:, :, 1:2])
+        # Support both naming conventions
+        # Use last timestep of prediction sequence to match target
+        if 'error_x' in predictions:
+            pred_x = predictions['error_x'][:, -1:, :]
+            pred_y = predictions['error_y'][:, -1:, :]
+        else:
+            pred_x = predictions['displacement_x_seq'][:, -1:, :]
+            pred_y = predictions['displacement_y_seq'][:, -1:, :]
+
+        loss_x = nn.functional.mse_loss(pred_x, targets[:, :, 0:1])
+        loss_y = nn.functional.mse_loss(pred_y, targets[:, :, 1:2])
 
         total_loss = self.alpha * loss_x + self.beta * loss_y
         return total_loss

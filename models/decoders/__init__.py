@@ -1,8 +1,7 @@
 """
-Decoder modules for the PINN-Seq3D framework
+Decoder modules for the Trajectory Correction framework
 """
 
-from .quality_decoder import QualityPredictionHead
-from .trajectory_decoder import TrajectoryCorrectionHead
+from .trajectory_decoder import TrajectoryCorrectionHead, TrajectorySequenceDecoder
 
-__all__ = ['QualityPredictionHead', 'TrajectoryCorrectionHead']
+__all__ = ['TrajectoryCorrectionHead', 'TrajectorySequenceDecoder']

@@ -66,8 +66,7 @@ def build_test_dataloader(data_dir, config, batch_size=256, num_workers=4):
         seq_len=config.data.seq_len,
         pred_len=config.data.pred_len,
         stride=config.data.stride,
-        mode='train',
-        include_trajectory=True
+        mode='train'
     )
 
     # Create test dataset with training scaler
@@ -77,8 +76,7 @@ def build_test_dataloader(data_dir, config, batch_size=256, num_workers=4):
         pred_len=config.data.pred_len,
         stride=config.data.stride,
         mode='test',
-        scaler=train_dataset_temp.scaler,
-        include_trajectory=True
+        scaler=train_dataset_temp.scaler
     )
 
     test_loader = DataLoader(
@@ -115,8 +113,18 @@ def evaluate_model(model, test_loader, device):
         outputs = model(input_features)
 
         # Extract predictions and targets
-        pred_x = outputs['error_x'].cpu().numpy()
-        pred_y = outputs['error_y'].cpu().numpy()
+        # Support both old (error_x/y) and new (displacement_x/y_seq) naming
+        # Note: Model outputs sequence for each input timestep, we use the last one for prediction
+        if 'error_x' in outputs:
+            pred_x = outputs['error_x'][:, -1:, :].cpu().numpy()  # Take last timestep
+            pred_y = outputs['error_y'][:, -1:, :].cpu().numpy()
+            loss_x = criterion(outputs['error_x'][:, -1:, :], trajectory_targets[:, :, 0:1].to(device))
+            loss_y = criterion(outputs['error_y'][:, -1:, :], trajectory_targets[:, :, 1:2].to(device))
+        else:
+            pred_x = outputs['displacement_x_seq'][:, -1:, :].cpu().numpy()  # Take last timestep
+            pred_y = outputs['displacement_y_seq'][:, -1:, :].cpu().numpy()
+            loss_x = criterion(outputs['displacement_x_seq'][:, -1:, :], trajectory_targets[:, :, 0:1].to(device))
+            loss_y = criterion(outputs['displacement_y_seq'][:, -1:, :], trajectory_targets[:, :, 1:2].to(device))
 
         target_x = trajectory_targets[:, :, 0:1].cpu().numpy()
         target_y = trajectory_targets[:, :, 1:2].cpu().numpy()
@@ -126,9 +134,6 @@ def evaluate_model(model, test_loader, device):
         all_targets_x.append(target_x)
         all_targets_y.append(target_y)
 
-        # Compute loss
-        loss_x = criterion(outputs['error_x'], trajectory_targets[:, :, 0:1].to(device))
-        loss_y = criterion(outputs['error_y'], trajectory_targets[:, :, 1:2].to(device))
         total_loss += (loss_x + loss_y).item() * input_features.size(0)
         total_samples += input_features.size(0)
 
@@ -365,7 +370,11 @@ def main():
 
         model.load_state_dict(state_dict)
         print(f"  Loaded checkpoint from epoch {checkpoint.get('epoch', 'unknown')}")
-        print(f"  Checkpoint validation loss: {checkpoint.get('val_loss', 'unknown'):.6f}")
+
+        val_loss = checkpoint.get('val_loss', None)
+        if val_loss is not None:
+            print(f"  Checkpoint validation loss: {val_loss:.6f}")
+
         if 'val_x_error' in checkpoint:
             print(f"  Checkpoint X error: {checkpoint.get('val_x_error'):.6f}")
             print(f"  Checkpoint Y error: {checkpoint.get('val_y_error'):.6f}")
