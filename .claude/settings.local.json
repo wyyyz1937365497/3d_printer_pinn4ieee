@@ -19,7 +19,8 @@
       "Bash(conda:*)",
       "Bash(tee:*)",
       "mcp__web-reader__webReader",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "mcp__zread__get_repo_structure"
     ]
   }
 }

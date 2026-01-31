@@ -94,17 +94,17 @@ params.motion.max_velocity = 500;       % mm/s - 最大速度（来自M203）
 % - 误差幅值: ±2-4μm → ±50-100μm (符合实际)
 
 % X轴动力学
-params.dynamics.x.mass = 0.35;           % kg - 挤出头质量 (Wozniak et al. 2025)
-params.dynamics.x.stiffness = 20000;     % N/m - GT2带有效刚度 (Wang et al. 2018)
-params.dynamics.x.damping = 20.0;        % N·s/m - 结构阻尼 (Wozniak et al. 2025)
+params.dynamics.x.mass = 0.35;           % kg - 挤出头质量
+params.dynamics.x.stiffness = 8000;      % N/m - 有效刚度（调整以生成±0.1mm误差）
+params.dynamics.x.damping = 15.0;        % N·s/m - 结构阻尼
 params.dynamics.x.natural_freq = sqrt(params.dynamics.x.stiffness / params.dynamics.x.mass);  % rad/s
 params.dynamics.x.damping_ratio = params.dynamics.x.damping / (2 * sqrt(params.dynamics.x.mass * params.dynamics.x.stiffness));
 params.dynamics.x.settling_time = 4 / (params.dynamics.x.damping_ratio * params.dynamics.x.natural_freq);  % s
 
 % Y轴动力学
-params.dynamics.y.mass = 0.45;           % kg - Y轴运动质量 (包含打印台,估算)
-params.dynamics.y.stiffness = 20000;     % N/m - GT2带有效刚度 (Wang et al. 2018)
-params.dynamics.y.damping = 20.0;        % N·s/m - 结构阻尼 (Wozniak et al. 2025)
+params.dynamics.y.mass = 0.45;           % kg - Y轴运动质量 (包含打印台)
+params.dynamics.y.stiffness = 8000;      % N/m - 有效刚度（调整以生成±0.1mm误差）
+params.dynamics.y.damping = 15.0;        % N·s/m - 结构阻尼
 params.dynamics.y.natural_freq = sqrt(params.dynamics.y.stiffness / params.dynamics.y.mass);  % rad/s
 params.dynamics.y.damping_ratio = params.dynamics.y.damping / (2 * sqrt(params.dynamics.y.mass * params.dynamics.y.stiffness));
 params.dynamics.y.settling_time = 4 / (params.dynamics.y.damping_ratio * params.dynamics.y.natural_freq);  % s
