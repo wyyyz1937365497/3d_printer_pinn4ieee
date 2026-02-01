@@ -25,7 +25,9 @@
       "Bash(if:*)",
       "Bash(then rm -rf checkpoints)",
       "Bash(else echo \"checkpoints目录不存在\")",
-      "Bash(fi:*)"
+      "Bash(fi:*)",
+      "Bash(lsof:*)",
+      "Bash(git checkout:*)"
     ]
   }
 }
