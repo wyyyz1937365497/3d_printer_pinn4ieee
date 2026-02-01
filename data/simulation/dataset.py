@@ -22,10 +22,9 @@ class PrinterSimulationDataset(Dataset):
     This dataset loads MATLAB .mat files and converts them to
     tensors suitable for training the PINN model.
 
-    Input Features (12 total):
+    Input Features (9 total - dynamics only):
         - Ideal trajectory (6): x_ref, y_ref, z_ref, vx_ref, vy_ref, vz_ref
-        - Observable measurements (6): T_nozzle, T_interface,
-          F_inertia_x, F_inertia_y, cooling_rate, layer_num
+        - Dynamics (3): F_inertia_x, F_inertia_y, layer_num
 
     Output Labels:
         - Trajectory error (2): error_x, error_y
@@ -33,15 +32,14 @@ class PrinterSimulationDataset(Dataset):
           porosity, dimensional_accuracy, quality_score
     """
 
-    # Define input feature names (12 features)
+    # Define input feature names (9 features - dynamics only)
     INPUT_FEATURES = [
         # Ideal trajectory (6)
         'x_ref', 'y_ref', 'z_ref',
         'vx_ref', 'vy_ref', 'vz_ref',
-        # Observable measurements (6)
-        'T_nozzle', 'T_interface',
+        # Dynamics (3)
         'F_inertia_x', 'F_inertia_y',
-        'cooling_rate', 'layer_num'
+        'layer_num'
     ]
 
     # Define output labels
@@ -212,7 +210,7 @@ class PrinterSimulationDataset(Dataset):
                 print(f"Warning: Failed to load {filepath} with both h5py and scipy: {e2}")
                 return None
 
-        # Validate required features exist
+        # Validate required features exist and fill missing ones
         missing_features = []
         for feat in self.INPUT_FEATURES + self.OUTPUT_TRAJECTORY:
             if feat not in data:
@@ -220,6 +218,27 @@ class PrinterSimulationDataset(Dataset):
 
         if missing_features:
             print(f"Warning: Missing features {missing_features} in {filepath}")
+
+        # Find the reference length from trajectory features
+        ref_length = None
+        for feat in ['x_ref', 'y_ref', 'z_ref', 'vx_ref', 'vy_ref', 'vz_ref']:
+            if feat in data:
+                arr = data[feat]
+                if isinstance(arr, np.ndarray):
+                    ref_length = len(arr) if arr.ndim == 1 else arr.shape[0]
+                    break
+
+        # Fill missing INPUT_FEATURES with default values
+        if ref_length is not None and ref_length > 0:
+            if 'layer_num' not in data:
+                # Compute from z_ref if available, otherwise ones
+                if 'z_ref' in data:
+                    z_ref = data['z_ref']
+                    if z_ref.ndim > 1:
+                        z_ref = np.squeeze(z_ref)
+                    data['layer_num'] = (z_ref.flatten() / 10.0)  # Assuming 0.1mm layer height
+                else:
+                    data['layer_num'] = np.ones(ref_length)
 
         # Handle missing quality features (may not be in old MATLAB files)
         # Adhesion field compatibility
@@ -230,17 +249,17 @@ class PrinterSimulationDataset(Dataset):
 
         # If missing, set to zeros or compute from existing features
         if 'internal_stress' not in data:
-            data['internal_stress'] = np.zeros_like(data.get('adhesion_ratio', np.zeros(1)))
+            data['internal_stress'] = np.zeros(ref_length) if ref_length else np.zeros(1)
         if 'porosity' not in data:
-            data['porosity'] = np.zeros_like(data.get('adhesion_ratio', np.zeros(1)))
+            data['porosity'] = np.zeros(ref_length) if ref_length else np.zeros(1)
         if 'dimensional_accuracy' not in data:
-            data['dimensional_accuracy'] = np.zeros_like(data.get('adhesion_ratio', np.zeros(1)))
+            data['dimensional_accuracy'] = np.zeros(ref_length) if ref_length else np.zeros(1)
         if 'quality_score' not in data:
             # Compute from adhesion_ratio if available
             if 'adhesion_ratio' in data:
                 data['quality_score'] = data['adhesion_ratio']  # Simple proxy
             else:
-                data['quality_score'] = np.zeros(1)
+                data['quality_score'] = np.zeros(ref_length) if ref_length else np.zeros(1)
 
         return data
 
@@ -312,7 +331,7 @@ class PrinterSimulationDataset(Dataset):
                         feat_data = np.squeeze(feat_data)
                     input_features_list.append(feat_data[i:i+self.seq_len])
                 
-                input_features = np.stack(input_features_list, axis=1)  # [seq_len, 12]
+                input_features = np.stack(input_features_list, axis=1)  # [seq_len, 9]
 
                 # Extract trajectory error targets
                 trajectory_targets_list = []
@@ -321,17 +340,29 @@ class PrinterSimulationDataset(Dataset):
                     if feat_data.ndim > 1:
                         feat_data = np.squeeze(feat_data)
                     trajectory_targets_list.append(feat_data[i+self.seq_len:i+self.seq_len+self.pred_len])
-                
+
                 trajectory_targets = np.stack(trajectory_targets_list, axis=1)  # [pred_len, 2]
 
                 # Extract quality targets (use last timestep of prediction)
+                # Only include if feature exists
                 quality_targets = []
                 for feat in self.OUTPUT_QUALITY:
+                    if feat not in data:
+                        # Skip missing quality features or use default value
+                        quality_targets.append(0.0)
+                        continue
+
                     feat_data = data[feat]
                     if feat_data.ndim > 1:
                         feat_data = np.squeeze(feat_data)
-                    quality_targets.append(feat_data[i+self.seq_len+self.pred_len-1])
-                
+
+                    # Handle scalar vs array
+                    if isinstance(feat_data, np.ndarray) and feat_data.size > 1:
+                        quality_targets.append(feat_data[i+self.seq_len+self.pred_len-1])
+                    else:
+                        # Scalar value
+                        quality_targets.append(float(feat_data))
+
                 quality_targets = np.array(quality_targets)  # [5]
 
                 sequences.append({
@@ -353,7 +384,7 @@ class PrinterSimulationDataset(Dataset):
 
         Returns:
             Dictionary with tensors:
-            - input_features: [seq_len, 12]
+            - input_features: [seq_len, 9]
             - trajectory_targets: [pred_len, 2]
             - quality_targets: [5]
             - F_inertia_x: [seq_len] 惯性力X轴
@@ -368,11 +399,11 @@ class PrinterSimulationDataset(Dataset):
             input_features = seq['input_features']
 
         # 提取惯性力特征（用于物理约束损失）
-        # 根据INPUT_FEATURES的顺序：x_ref, y_ref, z_ref, vx_ref, vy_ref, vz_ref, 
-        # T_nozzle, T_interface, F_inertia_x, F_inertia_y, cooling_rate, layer_num
-        # F_inertia_x 在索引8，F_inertia_y 在索引9
-        F_inertia_x = input_features[:, 8]  # [seq_len]
-        F_inertia_y = input_features[:, 9]  # [seq_len]
+        # 根据INPUT_FEATURES的顺序：x_ref, y_ref, z_ref, vx_ref, vy_ref, vz_ref,
+        # F_inertia_x, F_inertia_y, layer_num
+        # F_inertia_x 在索引6，F_inertia_y 在索引7
+        F_inertia_x = input_features[:, 6]  # [seq_len]
+        F_inertia_y = input_features[:, 7]  # [seq_len]
 
         # Convert to tensors
         sample = {

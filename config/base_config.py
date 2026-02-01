@@ -22,33 +22,32 @@ class DataConfig:
     stride: int = 5  # 序列之间的步长（优化：从10减小到5，增加2倍训练样本）
     sampling_rate: int = 100  # 采样频率（Hz，MATLAB使用100Hz）
 
-    # 输入特征（共12个）- 明确定义
+    # 输入特征（共9个）- 仅动力学特征
     input_features: list = field(default_factory=lambda: [
-        # 理想轨迹（6个）- 理想轨迹
-        'x_ref', 'y_ref', 'z_ref',           # 参考位置
-        'vx_ref', 'vy_ref', 'vz_ref',        # 参考速度
+        # 理想轨迹（6个）
+        'x_ref', 'y_ref', 'z_ref',               # 参考位置
+        'vx_ref', 'vy_ref', 'vz_ref',            # 参考速度
 
-        # 可观测测量值（6个）- 显式测量量
-        'T_nozzle', 'T_interface',            # 温度
-        'F_inertia_x', 'F_inertia_y',        # 惯性力
-        'cooling_rate', 'layer_num'          # 冷却速率 + 层号
+        # 动力学特征（3个）
+        'F_inertia_x', 'F_inertia_y',            # 惯性力
+        'layer_num'                              # 层号
     ])
 
     # 输出标签 - 明确定义
     output_trajectory: list = field(default_factory=lambda: [
-        'error_x', 'error_y'                  # 误差向量 (2D)
+        'error_x', 'error_y'                      # 误差向量 (2D)
     ])
 
     output_quality: list = field(default_factory=lambda: [
-        'adhesion_strength',                 # 层间粘结强度 (MPa)
-        'internal_stress',                   # 内应力 (MPa)
-        'porosity',                          # 孔隙率 (%)
-        'dimensional_accuracy',              # 尺寸精度
-        'quality_score'                      # 综合质量评分
+        'adhesion_strength',                     # 层间粘结强度 (MPa)
+        'internal_stress',                       # 内应力 (MPa)
+        'porosity',                              # 孔隙率 (%)
+        'dimensional_accuracy',                  # 尺寸精度
+        'quality_score'                          # 综合质量评分
     ])
 
     # 特征维度（向后兼容）
-    num_features: int = 12  # 输入特征数量
+    num_features: int = 9  # 输入特征数量（仅动力学）
     num_quality_outputs: int = 5  # 质量输出数量
     num_fault_classes: int = 4  # 正常、喷嘴堵塞、机械松动、电机故障
     num_trajectory_outputs: int = 2  # error_x, error_y
@@ -129,24 +128,37 @@ class ModelConfig:
 
 @dataclass
 class PhysicsConfig:
-    """物理约束配置 - Ender-3 V2 + PLA参数"""
-    # 机械动力学（二阶系统：m·x'' + c·x' + k·x = F(t)）
-    mass_x: float = 0.485              # kg - X轴有效质量
-    mass_y: float = 0.650              # kg - Y轴有效质量
-    stiffness: float = 150000           # N/m - 皮带刚度
-    damping: float = 25.0               # N·s/m - 阻尼系数
-    
+    """物理约束配置 - 基于MATLAB仿真的真实参数（physics_parameters.m）"""
+    # 机械动力学（二阶系统：m·x'' + c·x' + k·x = -m·a_ref）
+    # 参数来源：matlab_simulation/physics_parameters.m line 96-110
+
+    # X轴动力学
+    mass_x: float = 0.35                # kg - X轴质量（仿真实际值）
+    stiffness_x: float = 8000.0         # N/m - X轴刚度（关键！不是150000）
+    damping_x: float = 15.0             # N·s/m - X轴阻尼
+
+    # Y轴动力学
+    mass_y: float = 0.45                # kg - Y轴质量（仿真实际值）
+    stiffness_y: float = 8000.0         # N/m - Y轴刚度
+    damping_y: float = 15.0             # N·s/m - Y轴阻尼
+
+    # 兼容旧接口（已弃用，使用上面的具体值）
+    # @deprecated: 请使用stiffness_x/stiffness_y
+    mass: float = 0.35                  # kg - 保留用于向后兼容
+    stiffness: float = 8000.0           # N/m - 更新为仿真实际值
+    damping: float = 15.0               # N·s/m - 更新为仿真实际值
+
     # 热物理学（PLA材料）
     thermal_diffusivity: float = 8.7e-8  # m²/s - PLA热扩散率
     thermal_conductivity: float = 0.13   # W/(m·K) - 热导率
     specific_heat: float = 1200          # J/(kg·K) - 比热容
     material_density: float = 1240       # kg/m³ - PLA密度
-    
+
     # 温度约束
     nozzle_temp: float = 220.0          # °C - 喷嘴温度
     bed_temp: float = 60.0              # °C - 热床温度
     glass_transition_temp: float = 60   # °C - 玻璃化转变温度
-    
+
     # 损失权重
     trajectory_loss_weight: float = 20.0   # 轨迹误差权重
     physics_loss_weight: float = 5.0       # 物理约束权重

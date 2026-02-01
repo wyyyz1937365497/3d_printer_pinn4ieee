@@ -31,6 +31,18 @@ def load_checkpoint(model, model_path, device):
             ckpt = torch.load(model_path, map_location=device)
 
     state = ckpt['model_state_dict'] if isinstance(ckpt, dict) and 'model_state_dict' in ckpt else ckpt
+
+    # Handle DataParallel checkpoint (multi-GPU training)
+    if any(k.startswith('module.') for k in state.keys()):
+        print("  Detected DataParallel checkpoint (multi-GPU), removing prefix...")
+        new_state = {}
+        for k, v in state.items():
+            if k.startswith('module.'):
+                new_state[k[len('module.'):]] = v
+            else:
+                new_state[k] = v
+        state = new_state
+
     model.load_state_dict(state)
 
 

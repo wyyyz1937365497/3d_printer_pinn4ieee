@@ -236,8 +236,7 @@ def build_dataloaders(data_dir, config, batch_size, num_workers=4):
         seq_len=config.data.seq_len,
         pred_len=config.data.pred_len,
         stride=config.data.stride,
-        mode='train',
-        include_trajectory=True
+        mode='train'
     )
 
     val_dataset = PrinterSimulationDataset(
@@ -246,8 +245,7 @@ def build_dataloaders(data_dir, config, batch_size, num_workers=4):
         pred_len=config.data.pred_len,
         stride=config.data.stride,
         mode='val',
-        scaler=train_dataset.scaler,
-        include_trajectory=True
+        scaler=train_dataset.scaler
     )
 
     train_loader = DataLoader(

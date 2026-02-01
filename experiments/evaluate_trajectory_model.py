@@ -91,8 +91,19 @@ def build_test_dataloader(data_dir, config, batch_size=256, num_workers=4):
 
 
 @torch.no_grad()
-def evaluate_model(model, test_loader, device):
-    """Evaluate model and collect predictions"""
+def evaluate_model(model, test_loader, device, eval_mode='last'):
+    """
+    Evaluate model and collect predictions
+
+    Args:
+        model: Trained model
+        test_loader: Test data loader
+        device: Device to run evaluation on
+        eval_mode: Evaluation mode
+            - 'last': Compare last timestep only (default, most relevant for correction)
+            - 'mean': Compare sequence means (consistent with training's scalar targets)
+            - 'all': Compare entire sequences (most comprehensive but slower)
+    """
     model.eval()
 
     all_predictions_x = []
@@ -112,22 +123,48 @@ def evaluate_model(model, test_loader, device):
         # Forward pass
         outputs = model(input_features)
 
-        # Extract predictions and targets
-        # Support both old (error_x/y) and new (displacement_x/y_seq) naming
-        # Note: Model outputs sequence for each input timestep, we use the last one for prediction
+        # Extract predictions and targets based on eval mode
         if 'error_x' in outputs:
-            pred_x = outputs['error_x'][:, -1:, :].cpu().numpy()  # Take last timestep
-            pred_y = outputs['error_y'][:, -1:, :].cpu().numpy()
-            loss_x = criterion(outputs['error_x'][:, -1:, :], trajectory_targets[:, :, 0:1].to(device))
-            loss_y = criterion(outputs['error_y'][:, -1:, :], trajectory_targets[:, :, 1:2].to(device))
+            pred_x_seq = outputs['error_x']  # [batch, pred_len, 1]
+            pred_y_seq = outputs['error_y']
         else:
-            pred_x = outputs['displacement_x_seq'][:, -1:, :].cpu().numpy()  # Take last timestep
-            pred_y = outputs['displacement_y_seq'][:, -1:, :].cpu().numpy()
-            loss_x = criterion(outputs['displacement_x_seq'][:, -1:, :], trajectory_targets[:, :, 0:1].to(device))
-            loss_y = criterion(outputs['displacement_y_seq'][:, -1:, :], trajectory_targets[:, :, 1:2].to(device))
+            pred_x_seq = outputs['displacement_x_seq']  # [batch, pred_len, 1]
+            pred_y_seq = outputs['displacement_y_seq']
 
-        target_x = trajectory_targets[:, :, 0:1].cpu().numpy()
-        target_y = trajectory_targets[:, :, 1:2].cpu().numpy()
+        if eval_mode == 'last':
+            # Use last timestep only (most relevant for real-time correction)
+            pred_x = pred_x_seq[:, -1:, :].cpu().numpy()  # [batch, 1, 1]
+            pred_y = pred_y_seq[:, -1:, :].cpu().numpy()
+            target_x = trajectory_targets[:, -1:, 0:1].cpu().numpy()
+            target_y = trajectory_targets[:, -1:, 1:2].cpu().numpy()
+            loss_x = criterion(pred_x_seq[:, -1:, :], trajectory_targets[:, -1:, 0:1].to(device))
+            loss_y = criterion(pred_y_seq[:, -1:, :], trajectory_targets[:, -1:, 1:2].to(device))
+        elif eval_mode == 'mean':
+            # Use sequence mean (consistent with training's scalar targets)
+            pred_x = pred_x_seq.mean(dim=1, keepdim=True).cpu().numpy()  # [batch, 1, 1]
+            pred_y = pred_y_seq.mean(dim=1, keepdim=True).cpu().numpy()
+            target_x = trajectory_targets[:, :, 0:1].mean(dim=1, keepdim=True).cpu().numpy()
+            target_y = trajectory_targets[:, :, 1:2].mean(dim=1, keepdim=True).cpu().numpy()
+            loss_x = criterion(pred_x_seq.mean(dim=1, keepdim=True), trajectory_targets[:, :, 0:1].mean(dim=1, keepdim=True).to(device))
+            loss_y = criterion(pred_y_seq.mean(dim=1, keepdim=True), trajectory_targets[:, :, 1:2].mean(dim=1, keepdim=True).to(device))
+        else:  # eval_mode == 'all'
+            # Use entire sequence
+            # 注意：模型输出[batch, seq_len, 1]，目标是[batch, pred_len, 2]
+            # 需要对齐序列长度
+            pred_len_actual = pred_x_seq.size(1)  # 模型输出的序列长度
+            target_len = trajectory_targets.size(1)  # 目标序列长度
+
+            # 取最小长度对齐
+            min_len = min(pred_len_actual, target_len)
+
+            pred_x = pred_x_seq[:, :min_len, :].cpu().numpy()  # [batch, min_len, 1]
+            pred_y = pred_y_seq[:, :min_len, :].cpu().numpy()
+            target_x = trajectory_targets[:, :min_len, 0:1].cpu().numpy()
+            target_y = trajectory_targets[:, :min_len, 1:2].cpu().numpy()
+
+            # Loss计算也要对齐
+            loss_x = criterion(pred_x_seq[:, :min_len, :], trajectory_targets[:, :min_len, 0:1].to(device))
+            loss_y = criterion(pred_y_seq[:, :min_len, :], trajectory_targets[:, :min_len, 1:2].to(device))
 
         all_predictions_x.append(pred_x)
         all_predictions_y.append(pred_y)
@@ -320,6 +357,9 @@ def main():
                        default='cuda' if torch.cuda.is_available() else 'cpu')
     parser.add_argument('--output', type=str,
                        default='evaluation_results/trajectory_model/metrics.json')
+    parser.add_argument('--eval_mode', type=str, default='last',
+                       choices=['last', 'mean', 'all'],
+                       help='Evaluation mode: last (final timestep only), mean (sequence mean), all (entire sequence)')
 
     args = parser.parse_args()
 
@@ -358,12 +398,25 @@ def main():
 
         # Handle torch.compile prefix
         state_dict = checkpoint['model_state_dict']
+
+        # Handle torch.compile checkpoint
         if any(k.startswith('_orig_mod.') for k in state_dict.keys()):
             print("  Detected torch.compile checkpoint, removing prefix...")
             new_state_dict = {}
             for k, v in state_dict.items():
                 if k.startswith('_orig_mod.'):
                     new_state_dict[k[len('_orig_mod.'):]] = v
+                else:
+                    new_state_dict[k] = v
+            state_dict = new_state_dict
+
+        # Handle DataParallel checkpoint (multi-GPU training)
+        if any(k.startswith('module.') for k in state_dict.keys()):
+            print("  Detected DataParallel checkpoint (multi-GPU), removing prefix...")
+            new_state_dict = {}
+            for k, v in state_dict.items():
+                if k.startswith('module.'):
+                    new_state_dict[k[len('module.'):]] = v
                 else:
                     new_state_dict[k] = v
             state_dict = new_state_dict
@@ -385,9 +438,9 @@ def main():
     print()
 
     # Evaluate
-    print("Evaluating model...")
+    print(f"\nEvaluating model (mode: {args.eval_mode})...")
     pred_x, pred_y, target_x, target_y, total_loss = evaluate_model(
-        model, test_loader, device
+        model, test_loader, device, args.eval_mode
     )
 
     # Compute metrics

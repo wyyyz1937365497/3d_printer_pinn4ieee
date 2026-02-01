@@ -20,7 +20,12 @@
       "Bash(tee:*)",
       "mcp__web-reader__webReader",
       "Bash(chmod:*)",
-      "mcp__zread__get_repo_structure"
+      "mcp__zread__get_repo_structure",
+      "Bash(dir:*)",
+      "Bash(if:*)",
+      "Bash(then rm -rf checkpoints)",
+      "Bash(else echo \"checkpoints目录不存在\")",
+      "Bash(fi:*)"
     ]
   }
 }
