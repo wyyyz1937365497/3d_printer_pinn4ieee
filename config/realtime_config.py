@@ -6,7 +6,7 @@
 DATA_CONFIG = {
     'seq_len': 20,          # 序列长度 (0.2秒 @ 100Hz)
     'pred_len': 1,          # 预测长度 (单步, 10ms)
-    'data_pattern': 'data_simulation_*',  # 数据目录模式
+    'data_pattern': 'data/simulation/*',  # 数据目录模式
     'train_split': 0.7,     # 训练集比例
     'val_split': 0.15,      # 验证集比例
 }

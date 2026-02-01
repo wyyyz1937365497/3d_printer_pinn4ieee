@@ -27,7 +27,14 @@
       "Bash(else echo \"checkpoints目录不存在\")",
       "Bash(fi:*)",
       "Bash(lsof:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(tree:*)",
+      "Bash(du:*)",
+      "Bash(git tag:*)",
+      "Bash([ ! -d:*)",
+      "Bash([:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

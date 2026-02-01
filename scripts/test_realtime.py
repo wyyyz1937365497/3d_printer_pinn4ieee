@@ -31,7 +31,7 @@ def test_data_loading():
     print("="*80)
 
     import glob
-    data_pattern = "data_simulation_*"
+    data_pattern = "data/simulation/*"
     all_dirs = glob.glob(data_pattern)
 
     if not all_dirs:
@@ -176,7 +176,7 @@ def test_training_loop():
     import random
 
     # 准备数据
-    data_pattern = "data_simulation_*"
+    data_pattern = "data/simulation/*"
     all_dirs = glob.glob(data_pattern)
     mat_files = []
     for d in all_dirs:
@@ -233,7 +233,7 @@ def test_evaluation():
     from sklearn.metrics import r2_score, mean_absolute_error
 
     # 准备数据
-    data_pattern = "data_simulation_*"
+    data_pattern = "data/simulation/*"
     all_dirs = glob.glob(data_pattern)
     mat_files = []
     for d in all_dirs:

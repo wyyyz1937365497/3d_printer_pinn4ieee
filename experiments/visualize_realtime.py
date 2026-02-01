@@ -310,7 +310,7 @@ def main():
     parser = argparse.ArgumentParser(description='Visualize real-time trajectory corrector results')
     parser.add_argument('--checkpoint', type=str, required=True,
                        help='Path to model checkpoint')
-    parser.add_argument('--data_dir', type=str, default='data_simulation_*',
+    parser.add_argument('--data_dir', type=str, default='data/simulation/*',
                        help='Data directory pattern')
     parser.add_argument('--seq_len', type=int, default=20, help='Sequence length')
     parser.add_argument('--batch_size', type=int, default=256, help='Batch size')
