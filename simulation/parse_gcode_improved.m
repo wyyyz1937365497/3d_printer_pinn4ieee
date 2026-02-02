@@ -8,8 +8,8 @@ function trajectory_data = parse_gcode_improved(gcode_file, params, options)
 % - Different print types (perimeter, infill, etc.)
 % - Only extrusion moves (filters out travel moves)
 %
-% The original parse_gcode.m is preserved for backward compatibility.
-%
+# The original parse_gcode.m is preserved for backward compatibility.
+#
 % Inputs:
 %   gcode_file - Path to G-code file
 %   params     - Physics parameters (from physics_parameters.m)
@@ -200,24 +200,9 @@ function trajectory_data = parse_gcode_improved(gcode_file, params, options)
 
             % Calculate movement
             if ~isnan(new_x) || ~isnan(new_y)
-                % Handle NaN values (use previous state if NaN)
-                if isnan(new_x)
-                    x_new = state.x;
-                else
-                    x_new = new_x;
-                end
-
-                if isnan(new_y)
-                    y_new = state.y;
-                else
-                    y_new = new_y;
-                end
-
-                if isnan(new_z)
-                    z_new = state.z;
-                else
-                    z_new = new_z;
-                end
+                x_new = isnan(new_x) ? state.x : new_x;
+                y_new = isnan(new_y) ? state.y : new_y;
+                z_new = isnan(new_z) ? state.z : new_z;
 
                 dx = x_new - state.x;
                 dy = y_new - state.y;
@@ -231,11 +216,7 @@ function trajectory_data = parse_gcode_improved(gcode_file, params, options)
                     current_segment = current_segment + 1;
 
                     % Calculate time
-                    if isnan(new_f)
-                        velocity = state.f / 60;  % mm/s
-                    else
-                        velocity = new_f / 60;  % mm/s
-                    end
+                    velocity = (isnan(new_f) ? state.f : new_f) / 60;  % mm/s
                     segment_time = segment_length / velocity;
                     current_time = current_time + segment_time;
 
@@ -244,11 +225,7 @@ function trajectory_data = parse_gcode_improved(gcode_file, params, options)
                     data.y(point_idx) = y_new;
                     data.z(point_idx) = z_new;
                     data.e(point_idx) = new_e;
-                    if isnan(new_f)
-                        data.f(point_idx) = state.f;
-                    else
-                        data.f(point_idx) = new_f;
-                    end
+                    data.f(point_idx) = isnan(new_f) ? state.f : new_f;
                     data.is_extruding(point_idx) = true;
                     data.print_type{point_idx} = state.current_type;
                     data.layer_num(point_idx) = state.current_layer;
@@ -260,11 +237,7 @@ function trajectory_data = parse_gcode_improved(gcode_file, params, options)
                     state.y = y_new;
                     state.z = z_new;
                     state.e = new_e;
-                    if isnan(new_f)
-                        state.f = state.f;
-                    else
-                        state.f = new_f;
-                    end
+                    state.f = isnan(new_f) ? state.f : new_f;
                 end
             end
         end
@@ -320,19 +293,11 @@ function trajectory_data = parse_gcode_improved(gcode_file, params, options)
     data.az = zeros(n_points, 1);
     data.a_mag = zeros(n_points, 1);
 
-    if n_points > 2
-        valid_accel = valid_dt(2:end) & data.dt(1:end-1) > 0;
-
-        % Use gradient to avoid dimension issues
-        dvx = gradient(data.vx, data.time);
-        dvy = gradient(data.vy, data.time);
-        dvz = gradient(data.vz, data.time);
-
-        data.ax(valid_accel) = dvx(valid_accel);
-        data.ay(valid_accel) = dvy(valid_accel);
-        data.az(valid_accel) = dvz(valid_accel);
-        data.a_mag(valid_accel) = sqrt(data.ax(valid_accel).^2 + data.ay(valid_accel).^2 + data.az(valid_accel).^2);
-    end
+    valid_accel = valid_dt(2:end) & data.dt(1:end-1) > 0;
+    data.ax(2:end) = diff(data.vx) ./ data.dt(2:end);
+    data.ay(2:end) = diff(data.vy) ./ data.dt(2:end);
+    data.az(2:end) = diff(data.vz) ./ data.dt(2:end);
+    data.a_mag(2:end) = sqrt(data.ax(2:end).^2 + data.ay(2:end).^2 + data.az(2:end).^2);
 
     % Jerk
     data.jx = zeros(n_points, 1);
@@ -340,19 +305,11 @@ function trajectory_data = parse_gcode_improved(gcode_file, params, options)
     data.jz = zeros(n_points, 1);
     data.jerk = zeros(n_points, 1);
 
-    if n_points > 3
-        valid_jerk = valid_accel(2:end) & valid_dt(3:end);
-
-        % Use gradient to avoid dimension issues
-        dax = gradient(data.ax, data.time);
-        day = gradient(data.ay, data.time);
-        daz = gradient(data.az, data.time);
-
-        data.jx(valid_jerk) = dax(valid_jerk);
-        data.jy(valid_jerk) = day(valid_jerk);
-        data.jz(valid_jerk) = daz(valid_jerk);
-        data.jerk(valid_jerk) = sqrt(data.jx(valid_jerk).^2 + data.jy(valid_jerk).^2 + data.jz(valid_jerk).^2);
-    end
+    valid_jerk = valid_accel(2:end) & valid_dt(3:end);
+    data.jx(3:end) = diff(data.ax) ./ data.dt(3:end);
+    data.jy(3:end) = diff(data.ay) ./ data.dt(3:end);
+    data.jz(3:end) = diff(data.az) ./ data.dt(3:end);
+    data.jerk(3:end) = sqrt(data.jx(3:end).^2 + data.jy(3:end).^2 + data.jz(3:end).^2);
 
     %% Detect corners
     fprintf('  Detecting corners...\n');

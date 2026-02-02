@@ -23,7 +23,10 @@ function gpu_info = setup_gpu(gpu_id)
 %   % Auto-select GPU with most free memory
 %   gpu = setup_gpu([]);
 
-    % 删除了所有verbose输出以提高速度，保留GPU加速功能
+    fprintf('============================================================\n');
+    fprintf('GPU Setup for MATLAB Simulation\n');
+    fprintf('============================================================\n');
+    fprintf('\n');
 
     gpu_info = struct();
     gpu_info.available = false;
@@ -34,14 +37,24 @@ function gpu_info = setup_gpu(gpu_id)
 
     %% Check if Parallel Computing Toolbox is available
     if ~exist('gpuDevice', 'file')
-        % GPU不可用，静默返回
+        fprintf('WARNING: Parallel Computing Toolbox not found!\n');
+        fprintf('GPU acceleration is not available.\n');
+        fprintf('Simulation will run on CPU.\n');
+        fprintf('\n');
+        fprintf('To enable GPU acceleration:\n');
+        fprintf('  1. Install Parallel Computing Toolbox\n');
+        fprintf('  2. Ensure CUDA-compatible GPU is detected\n');
+        fprintf('\n');
         return;
     end
 
     gpu_info.available = true;
+    fprintf('Parallel Computing Toolbox: Available ✓\n');
+    fprintf('\n');
 
     %% Force use GPU 1 (cuda1)
     gpu_id = 1;
+    fprintf('Using GPU 1 (cuda1)\n');
 
     %% Set the selected GPU
     try
@@ -51,9 +64,26 @@ function gpu_info = setup_gpu(gpu_id)
         gpu_info.memory = gpu_device.FreeMemory / 1e9;
         gpu_info.use_gpu = true;
 
+        fprintf('\nSelected GPU Configuration:\n');
+        fprintf('  Device: %s\n', gpu_device.Name);
+        fprintf('  GPU ID: %d\n', gpu_id);
+        fprintf('  Free Memory: %.2f GB\n', gpu_info.memory);
+        fprintf('  Total Memory: %.2f GB\n', gpu_device.TotalMemory / 1e9);
+        fprintf('  Multiprocessor Count: %d\n', gpu_device.MultiprocessorCount);
+        fprintf('\n');
+
+        fprintf('GPU ready for computation ✓\n');
+        fprintf('\n');
+
     catch ME
-        % GPU初始化失败，静默fallback到CPU
+        fprintf('ERROR: Failed to initialize GPU %d!\n', gpu_id);
+        fprintf('Error: %s\n', ME.message);
+        fprintf('Simulation will run on CPU.\n');
+        fprintf('\n');
         gpu_info.use_gpu = false;
         gpu_info.device = [];
     end
+
+    fprintf('============================================================\n');
+    fprintf('\n');
 end
