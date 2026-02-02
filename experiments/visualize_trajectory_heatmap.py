@@ -1,8 +1,16 @@
 """
 可视化完整轨迹误差热图对比 (修正前 vs 修正后)
 
-参照 main 分支的 visualize_trajectory_correction.py 实现
-适配到新的实时修正系统
+注意：此脚本使用已有数据进行可视化，不运行MATLAB仿真。
+如需实时修正演示（运行MATLAB），请使用：
+  - experiments/visualize_realtime_correction_demo.py (完整MATLAB集成)
+  - experiments/demonstrate_realtime_correction.py (简化演示，无需MATLAB)
+
+使用方法：
+  python experiments/visualize_trajectory_heatmap.py \
+      --checkpoint checkpoints/realtime_corrector/best_model.pth \
+      --data_dir "data/simulation/*" \
+      --file_index 0
 """
 
 import os
@@ -126,8 +134,8 @@ def main():
     pred_count[pred_count == 0] = 1
     pred_err = pred_sum / pred_count  # [n, 2]
 
-    # 计算修正后的误差
-    corr_err_x = err_x - pred_err[:, 0]  # 真实误差 - 预测误差 = 修正后剩余误差
+    # 计算修正后的误差（假设修正后误差 = 原始误差 - 预测误差）
+    corr_err_x = err_x - pred_err[:, 0]
     corr_err_y = err_y - pred_err[:, 1]
 
     # 计算误差幅度
