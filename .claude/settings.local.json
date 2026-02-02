@@ -34,7 +34,8 @@
       "Bash([ ! -d:*)",
       "Bash([:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git rm:*)"
     ]
   }
 }
