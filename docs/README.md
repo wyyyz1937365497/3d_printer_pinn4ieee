@@ -124,12 +124,15 @@ python trajectory_plots.py --test  # Generate test plots
 - [数据收集与训练指南.md](archives/chinese_notes/数据收集与训练指南.md) - Data guide (中文)
 
 #### Guides (Temporary Documentation)
+- **[README](archives/guides/README.md)** - Index of temporary guides
+- [README_REALTIME.md](archives/guides/README_REALTIME.md) - Detailed real-time system documentation
 - [DATA_REGENERATION_GUIDE.md](archives/guides/DATA_REGENERATION_GUIDE.md) - Data regeneration with updated physics parameters
 - [PARALLEL_INSTRUCTIONS.md](archives/guides/PARALLEL_INSTRUCTIONS.md) - Parallel data collection instructions
 - [PERFORMANCE_OPTIMIZATION.md](archives/guides/PERFORMANCE_OPTIMIZATION.md) - Performance optimization guide
 - [PHYSICS_IMPROVEMENTS.md](archives/guides/PHYSICS_IMPROVEMENTS.md) - Physics constraint improvements
 
 #### History (Project Evolution)
+- **[README](archives/history/README.md)** - Index of historical documentation
 - [REBUILD_SUMMARY.md](archives/history/REBUILD_SUMMARY.md) - Real-time correction system rebuild summary
 - [REORGANIZATION_NOTES.md](archives/history/REORGANIZATION_NOTES.md) - Project reorganization notes
 
