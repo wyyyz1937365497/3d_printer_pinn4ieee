@@ -10,6 +10,12 @@ import glob
 import h5py
 import numpy as np
 from pathlib import Path
+import sys
+
+# 设置Windows控制台编码
+if sys.platform == 'win32':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 
 def check_mat_file(filepath):

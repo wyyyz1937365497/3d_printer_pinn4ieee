@@ -32,7 +32,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 
-def run_matlab_simulation(gcode_file, layer_num, checkpoint_path, output_dir):
+def run_matlab_simulation(gcode_file, layer_num, checkpoint_path, output_dir, seq_len=50):
     """
     调用MATLAB运行实时修正仿真
 
@@ -41,6 +41,7 @@ def run_matlab_simulation(gcode_file, layer_num, checkpoint_path, output_dir):
         layer_num: 层编号
         checkpoint_path: 模型检查点路径
         output_dir: 输出目录
+        seq_len: 序列长度（默认50，与训练一致）
 
     Returns:
         results: MATLAB仿真结果字典
@@ -51,6 +52,7 @@ def run_matlab_simulation(gcode_file, layer_num, checkpoint_path, output_dir):
     print(f"\n配置:")
     print(f"  G-code: {gcode_file}")
     print(f"  层编号: {layer_num}")
+    print(f"  序列长度: {seq_len}")
     print(f"  模型: {checkpoint_path}")
     print(f"  输出目录: {output_dir}")
 
@@ -77,6 +79,7 @@ def run_matlab_simulation(gcode_file, layer_num, checkpoint_path, output_dir):
             gcode_file,
             float(layer_num),
             checkpoint_path,
+            float(seq_len),
             output_dir,
             nargout=0  # 不返回输出，结果保存在文件中
         )
@@ -476,6 +479,8 @@ def main():
                        help='G-code file to simulate')
     parser.add_argument('--layer', type=int, default=25,
                        help='Layer number to simulate')
+    parser.add_argument('--seq_len', type=int, default=50,
+                       help='Sequence length (must match training, default: 50)')
     parser.add_argument('--output_dir', type=str,
                        default='results/realtime_correction',
                        help='Output directory')
@@ -488,6 +493,7 @@ def main():
             gcode_file=args.gcode,
             layer_num=args.layer,
             checkpoint_path=args.checkpoint,
+            seq_len=args.seq_len,
             output_dir=args.output_dir
         )
 

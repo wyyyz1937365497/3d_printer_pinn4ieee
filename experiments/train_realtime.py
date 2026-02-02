@@ -4,9 +4,17 @@
 关键优化:
 1. seq_len=20 (0.2秒历史)
 2. pred_len=1 (单步预测)
-3. 轻量级模型 (~46K参数)
-4. MAE损失
+3. 可配置模型大小 (hidden_size, num_layers)
+4. 混合损失（MAE + MSE）
 5. 混合精度 + 梯度累积
+
+使用方法:
+    # 基础训练（小模型 + 混合损失）
+    python train_realtime.py --data_dir "data_simulation_*" --loss_type hybrid
+
+    # 中等模型 + 更长序列
+    python train_realtime.py --data_dir "data_simulation_*" \
+        --hidden_size 96 --num_layers 2 --seq_len 50 --epochs 200 --loss_type hybrid
 """
 
 import os
@@ -27,6 +35,30 @@ from torch.cuda.amp import autocast, GradScaler
 
 from data.realtime_dataset import RealTimeTrajectoryDataset
 from models.realtime_corrector import RealTimeCorrector
+
+
+class HybridLoss(nn.Module):
+    """
+    混合损失函数: MAE + MSE
+
+    优点:
+    - MAE: 稳健，对异常值不敏感
+    - MSE: 对大误差惩罚更大，提升方差解释能力
+
+    Args:
+        mae_ratio: MAE权重（默认0.7，即 0.7*MAE + 0.3*MSE）
+    """
+    def __init__(self, mae_ratio=0.7):
+        super().__init__()
+        self.mae_ratio = mae_ratio
+        self.mse_ratio = 1.0 - mae_ratio
+        self.mae = nn.L1Loss()
+        self.mse = nn.MSELoss()
+
+    def forward(self, preds, targets):
+        mae_loss = self.mae(preds, targets)
+        mse_loss = self.mse(preds, targets)
+        return self.mae_ratio * mae_loss + self.mse_ratio * mse_loss
 
 
 def build_loaders(data_pattern, seq_len=20, batch_size=256, num_workers=2):
@@ -195,6 +227,14 @@ def main():
                        help='Use mixed precision training')
     parser.add_argument('--num_workers', type=int, default=2, help='DataLoader workers')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
+    parser.add_argument('--hidden_size', type=int, default=56, help='LSTM hidden size')
+    parser.add_argument('--num_layers', type=int, default=2, help='Number of LSTM layers')
+    parser.add_argument('--dropout', type=float, default=0.1, help='Dropout rate')
+    parser.add_argument('--loss_type', type=str, default='hybrid',
+                       choices=['mae', 'mse', 'hybrid'],
+                       help='Loss function type: mae, mse, or hybrid (default: hybrid)')
+    parser.add_argument('--loss_ratio', type=float, default=0.7,
+                       help='MAE ratio in hybrid loss (default: 0.7, i.e., 0.7*MAE + 0.3*MSE)')
 
     args = parser.parse_args()
 
@@ -221,19 +261,30 @@ def main():
     # 创建模型
     model = RealTimeCorrector(
         input_size=4,
-        hidden_size=56,
-        num_layers=2,
-        dropout=0.1
+        hidden_size=args.hidden_size,
+        num_layers=args.num_layers,
+        dropout=args.dropout
     ).to(device)
 
     # 打印模型信息
     info = model.get_model_info()
     print(f"\n模型配置:")
+    print(f"  Hidden size: {args.hidden_size}")
+    print(f"  Num layers: {args.num_layers}")
+    print(f"  Dropout: {args.dropout}")
     print(f"  参数量: {info['total_parameters']:,}")
     print(f"  可训练参数: {info['trainable_parameters']:,}")
 
-    # 损失函数 (MAE)
-    criterion = nn.L1Loss()
+    # 损失函数
+    if args.loss_type == 'mae':
+        criterion = nn.L1Loss()
+        print(f"  损失函数: MAE (L1)")
+    elif args.loss_type == 'mse':
+        criterion = nn.MSELoss()
+        print(f"  损失函数: MSE (L2)")
+    else:  # hybrid
+        criterion = HybridLoss(mae_ratio=args.loss_ratio)
+        print(f"  损失函数: Hybrid ({args.loss_ratio}*MAE + {1.0-args.loss_ratio}*MSE)")
 
     # 优化器
     optimizer = torch.optim.AdamW(
@@ -318,10 +369,10 @@ def main():
                 'model_info': info,
             }, checkpoint_dir / 'best_model.pth')
 
-            print(f"  ✓ 保存最佳模型 (val_loss: {best_val_loss:.6f})")
+            print(f"  [+] Saved best model (val_loss: {best_val_loss:.6f})")
         else:
             patience_counter += 1
-            print(f"  ✗ 无改进 ({patience_counter}/{patience})")
+            print(f"  [-] No improvement ({patience_counter}/{patience})")
 
             if patience_counter >= patience:
                 print(f"\n早停: {patience}个epochs无改进")

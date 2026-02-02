@@ -31,15 +31,32 @@ from models.realtime_corrector import RealTimeCorrector
 
 
 def load_model(checkpoint_path, device):
-    """加载训练好的模型"""
+    """加载训练好的模型（自动从checkpoint读取配置）"""
+    # 先加载checkpoint获取模型配置
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+
+    # 从checkpoint中获取模型信息（如果有）
+    if 'model_info' in checkpoint:
+        model_info = checkpoint['model_info']
+        # 使用checkpoint中保存的配置
+        hidden_size = model_info.get('hidden_size', 56)
+        num_layers = model_info.get('num_layers', 2)
+        dropout = model_info.get('dropout', 0.1)
+    else:
+        # 默认配置
+        hidden_size = 56
+        num_layers = 2
+        dropout = 0.1
+
+    # 创建模型
     model = RealTimeCorrector(
         input_size=4,
-        hidden_size=56,
-        num_layers=2,
-        dropout=0.1
+        hidden_size=hidden_size,
+        num_layers=num_layers,
+        dropout=dropout
     ).to(device)
 
-    checkpoint = torch.load(checkpoint_path, map_location=device)
+    # 加载权重
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
 
