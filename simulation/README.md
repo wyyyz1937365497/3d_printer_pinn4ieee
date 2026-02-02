@@ -1,288 +1,242 @@
-# MATLAB仿真系统
+# 3D打印机仿真系统 (FDM 3D Printer Simulation)
 
-**版本**: 2.0
-**更新日期**: 2026-01-27
-
----
-
-## 📁 核心文件
-
-### 主入口（根目录）
-
-**`collect_data.m`** - 数据收集主脚本
-- 使用最新的轨迹重建和热累积模型
-- 单层参数扫描 + 三层验证策略
-- 30-40倍效率提升
-
-**快速开始**:
-```matlab
-cd('F:\TJ\3d_print\3d_printer_pinn4ieee')
-collect_data
-```
-
-### 核心模块（matlab_simulation/）
-
-#### 1. 轨迹重建
-
-**`reconstruct_trajectory.m`** - G-code轨迹重建
-- 解析G-code关键点
-- S曲线/梯形速度曲线规划
-- 时间插值（0.01s采样）
-- 输出密集时间序列：位置、速度、加速度、jerk
-
-**关键创新**:
-- 从33个关键点 → 2000-5000个密集点
-- 考虑物理约束（v_max, a_max, j_max）
-- 模拟Ender-3 V2运动规划
-
-#### 2. 热累积模型
-
-**`calculate_thermal_history.m`** - 多层热累积计算
-- 三阶段物理模型：加热 → 冷却 → 热扩散
-- 考虑喷嘴加热、层间冷却、下层热传导
-- 预测每层初始温度
-
-**关键创新**:
-- 物理驱动（非简单线性模型）
-- 第25层初始温度：60-70°C（符合文献）
-- 考虑热输入衰减效应
-
-#### 3. 动力学仿真
-
-**`simulate_trajectory_error.m`** - CPU版轨迹误差
-- 二阶质量-弹簧-阻尼系统
-- RK4数值求解
-- 作为GPU版本的fallback
-
-**`simulate_trajectory_error_gpu.m`** - GPU加速版
-- 向量化矩阵运算
-- 4-13倍加速（数据量>10K点）
-
-#### 4. 热场仿真
-
-**`simulate_thermal_field.m`** - 热场演化
-- 移动热源模型
-- 集成热累积模型
-- 计算温度场、冷却速率、温度梯度
-
-#### 5. 粘结强度
-
-**`calculate_adhesion_strength.m`** - 层间粘结预测
-- Wool-O'Connor聚合物愈合模型
-- 基于界面温度和时间
-- 输出粘结强度比（0-1）
-
-#### 6. 完整仿真
-
-**`run_full_simulation_gpu.m`** - 完整仿真流程
-- 集成所有模块
-- 自动GPU/CPU选择
-- 数据融合和保存
-
-#### 7. 支持模块
-
-**`physics_parameters.m`** - 物理参数配置
-- Ender-3 V2参数（质量、刚度、阻尼）
-- PLA材料参数（热学、力学）
-- 传热系数（对流、辐射）
-- 所有参数有文献来源
-
-**`setup_gpu.m`** - GPU初始化
-- 自动检测GPU
-- 选择cuda1（不影响cuda0训练）
-- CPU fallback机制
-
-### 数据转换
-
-**`convert_matlab_to_python.py`** - MATLAB → Python
-- 转换.mat文件为HDF5格式
-- 自动数据增强（时间窗口、噪声）
-- 适配Python训练
+**版本**: 4.0 (并行数据收集)
+**更新日期**: 2026-02-02
 
 ---
 
-## 🔄 工作流程
+## 📁 目录结构
+
+### 核心仿真模块 (`simulation/`)
 
 ```
-1. collect_data.m (主入口)
-   ↓
-2. reconstruct_trajectory.m → 密集时间序列（理想轨迹）
-   ↓
-3. calculate_thermal_history.m → 初始温度
-   ↓
-4. simulate_thermal_field.m → 热场演化
-   ↓
-5. calculate_quality_metrics.m → 质量特征 ✨NEW
-   (基于理想轨迹+热场，不依赖误差)
-   ↓
-6. simulate_trajectory_error_gpu.m → 轨迹误差
-   (动力学仿真，产生误差向量)
-   ↓
-7. run_full_simulation_gpu.m → 数据融合、保存
-   ↓
-8. convert_matlab_to_python.py → Python格式
+simulation/
+├── parse_gcode_improved.m                    # G-code解析器
+├── reconstruct_trajectory.m                  # 轨迹重构（S-curve速度规划）
+├── physics_parameters.m                      # 物理参数定义
+├── simulate_trajectory_error.m               # 轨迹误差仿真（CPU）
+├── simulate_trajectory_error_gpu.m           # 轨迹误差仿真（GPU）
+├── simulate_trajectory_error_with_firmware_effects.m  # 固件增强仿真
+├── run_simulation.m                          # 统一仿真接口
+├── setup_gpu.m                               # GPU配置
+│
+├── +planner/                                 # 运动规划包
+│   └── junction_deviation.m                  # Junction Deviation算法
+│
+├── +stepper/                                 # 步进电机包
+│   ├── microstep_resonance.m                 # 微步谐振模型
+│   └── timer_jitter.m                        # 定时器抖动模型
+│
+└── archives/                                 # 归档文件（旧版本）
+    ├── run_full_simulation.m                 # 旧版完整仿真
+    ├── simulate_thermal_field.m              # 热场仿真（已移除）
+    └── ...
 ```
 
-**重要变更 (v3.0)**:
-- 质量参数计算移至轨迹误差仿真**之前**
-- 质量参数仅基于理想轨迹+热场计算
-- 误差向量由动力学仿真独立产生
+### 数据收集脚本 (根目录)
+
+```
+根目录/
+├── collect_data_parallel.m                   # ⭐ 并行数据收集（主入口）
+├── collect_3dbenchy.m                        # 3DBenchy数据收集
+├── collect_bearing5.m                        # bearing5数据收集
+├── collect_boat.m                            # simple_boat5数据收集
+├── collect_nautilus.m                        # Nautilus数据收集
+└── collect_all.m                             # 批量收集所有文件
+```
 
 ---
 
-## 📊 输出数据
+## 🚀 快速开始
 
-### .mat文件结构
-
-每个仿真生成一个.mat文件，包含：
+### 1. 收集单个文件
 
 ```matlab
-simulation_data =
-    time: [T×1 double]           % 时间 (s)
+% 3DBenchy（默认采样48层）
+collect_3dbenchy
+
+% Bearing5（全量75层）
+collect_bearing5
+
+% Nautilus（全量56层）
+collect_nautilus
+
+% Boat（采样74层）
+collect_boat
+```
+
+### 2. 批量收集所有文件
+
+```matlab
+% 使用默认配置
+collect_all
+
+% 收集所有文件的所有层
+collect_all('all')
+
+% 统一采样配置
+collect_all('sampled:5')
+```
+
+### 3. 自定义收集
+
+```matlab
+% 指定层范围
+collect_3dbenchy(1:50)
+
+% 指定采样间隔
+collect_3dbenchy('sampled:2')
+
+% 使用并行版本（自定义worker数）
+collect_data_parallel('test.gcode', 'all', 'NumWorkers', 16)
+```
+
+---
+
+## 🔄 仿真流程
+
+### 轨迹误差仿真（包含固件效应）
+
+```
+G-code文件
+    ↓
+[parse_gcode_improved.m] 提取轨迹点
+    ↓
+[reconstruct_trajectory.m] S-curve速度规划
+    ↓
+[simulate_trajectory_error_with_firmware_effects.m]
+    ├→ 基础动力学（惯性+弹性）→ 50-80 μm
+    ├→ Junction Deviation（转角圆化）→ 20-50 μm
+    ├→ 微步谐振（高频振动）→ 10-30 μm
+    └→ 定时器抖动（脉冲不规则）→ 5-15 μm
+    ↓
+误差向量 (error_x, error_y) → 总计 ~0.1 mm
+```
+
+### 并行数据收集流程
+
+```
+1. 检测文件层数
+   ├→ 读取文件头 "; total layer number: XX" (最快)
+   └→ Fallback: 扫描文件统计 LAYER 标记
+
+2. 预提取轨迹（所有worker共享）
+   ├→ 一次性解析所有层
+   └→ 组织到 containers.Map 缓存
+
+3. 并行仿真（parfor）
+   ├→ Worker 1: 层 1, 16, 31, 46...
+   ├→ Worker 2: 层 2, 17, 32, 47...
+   ├→ ...
+   └→ 每个worker: 从缓存获取轨迹 → 运行仿真 → 保存
+
+4. 输出
+   └── data_simulation_<gcode>_<config>/layer<NN>_ender3v2.mat
+```
+
+---
+
+## ⚡ 性能优化
+
+### 并行计算加速
+
+| 任务 | 单线程 | 15核并行 | 加速比 |
+|------|--------|----------|--------|
+| 3DBenchy 48层 | 40-50分钟 | 5-8分钟 | **6-10x** |
+| Bearing5 75层 | 60-75分钟 | 8-12分钟 | **6-10x** |
+| Boat 74层 | 60-75分钟 | 8-12分钟 | **6-10x** |
+| Nautilus 56层 | 45-55分钟 | 6-9分钟 | **6-10x** |
+
+### 关键优化点
+
+1. **共享轨迹缓存**: 所有worker共享预提取的轨迹，避免重复解析gcode
+2. **静默模式**: 使用 `evalc` 抑制并行worker的详细输出
+3. **CPU模式**: 并行环境使用CPU，避免GPU资源竞争
+4. **断点续传**: 自动跳过已完成的层
+
+---
+
+## 📊 输出数据格式
+
+每个 `.mat` 文件包含：
+
+```matlab
+simulation_data = struct(
+    % 时间
+    'time',              % 时间向量 (s)
 
     % 参考轨迹
-    x_ref, y_ref, z_ref: [T×1 double]  % 位置 (mm)
-    vx_ref, vy_ref, vz_ref: [T×1 double] % 速度 (mm/s)
-    ax_ref, ay_ref, az_ref: [T×1 double] % 加速度 (mm/s²)
-    jx_ref, jy_ref, jz_ref: [T×1 double]  % Jerk (mm/s³)
+    'x_ref', 'y_ref', 'z_ref',           % 参考位置 (mm)
+    'vx_ref', 'vy_ref', 'vz_ref',         % 参考速度 (mm/s)
+    'ax_ref', 'ay_ref', 'az_ref',         % 参考加速度 (mm/s²)
+    'jx_ref', 'jy_ref', 'jz_ref',         % 参考加加速度 (mm/s³)
 
-    % 实际轨迹
-    x_act, y_act, z_act: [T×1 double]
-    vx_act, vy_act, vz_act: [T×1 double]
-    ax_act, ay_act, az_act: [T×1 double]
-
-    % 误差
-    error_x, error_y: [T×1 double]         % X/Y误差 (mm)
-    error_magnitude: [T×1 double]         % 误差幅值 (mm)
-    error_direction: [T×1 double]         % 误差方向 (rad)
-
-    % 动力学
-    F_inertia_x, F_inertia_y: [T×1 double] % 惯性力 (N)
-    F_elastic_x, F_elastic_y: [T×1 double] % 弹性力 (N)
-    belt_stretch_x, belt_stretch_y: [T×1 double] % 皮带伸长 (mm)
-
-    % 热场
-    T_nozzle: [T×1 double]           % 喷嘴温度 (°C)
-    T_interface: [T×1 double]       % 层间温度 (°C)
-    T_surface: [T×1 double]         % 表面温度 (°C)
-    cooling_rate: [T×1 double]      % 冷却速率 (°C/s)
-    temp_gradient_z: [T×1 double]  % 温度梯度 (°C/mm)
-    interlayer_time: [T×1 double]  % 层间时间 (s)
-
-    % 粘结
-    adhesion_ratio: [T×1 double]   % 粘结强度比 (0-1)
-
-    % ✨ 质量特征 (Implicit Quality Parameters) - NEW
-    internal_stress: [T×1 double]  % 内应力 (MPa)
-    porosity: [T×1 double]         % 孔隙率 (0-100%)
-    dimensional_accuracy: [T×1 double]  % 尺寸误差 (mm)
-    quality_score: [T×1 double]    % 综合质量评分 (0-1)
+    % 误差向量
+    'error_x', 'error_y',                 % X/Y误差 (mm)
+    'error_magnitude',                    % 误差幅值 (mm)
+    'error_direction',                    % 误差方向 (rad)
 
     % G-code特征
-    is_extruding: [T×1 logical]    % 挤出标志
-    print_type: {T×1 cell}         % 打印类型
-    layer_num: [T×1 double]        % 层号
+    'is_extruding',                       % 是否挤出
+    'is_travel',                          % 是否移动
+    'layer_num',                          % 层号
 
-    % 参数引用
-    params: struct                 % 使用的物理参数
+    % 系统信息
+    'params'                              % 物理参数
+);
 ```
 
 ---
 
-## 🚀 使用方法
+## 🔧 配置参数
 
-### 方法1：标准数据生成（推荐）
-
-```matlab
-cd('F:\TJ\3d_print\3d_printer_pinn4ieee')
-collect_data
-```
-
-**输出**:
-- `data_simulation_layer25/` - 100个参数配置的仿真数据
-- `validation_layer*/` - 三层验证数据
-- 总计：~109,200 样本（含增强）
-- 时间：~1.5 小时
-
-### 方法2：单次测试
+### 修改物理参数
 
 ```matlab
-addpath('matlab_simulation')
-
-% 配置参数
-params = physics_parameters();
-params.debug.verbose = false;  % 关闭图表
-
-% 配置选项
-options = struct();
-options.layers = 25;           % 第25层
-options.time_step = 0.01;      % 10ms采样
-options.include_type = {'Outer wall', 'Inner wall'};
-
-% 运行仿真
-data = run_full_simulation_gpu('Tremendous Hillar_PLA_17m1s.gcode', ...
-                               'test_output.mat', options, params, 1);
+% 编辑 physics_parameters.m
+params.motion.max_accel = 500;           % 最大加速度 (mm/s²)
+params.motion.max_velocity = 300;        % 最大速度 (mm/s)
+params.dynamics.x.mass = 0.35;           % X轴质量 (kg)
+params.dynamics.x.stiffness = 15000;     % X轴刚度 (N/m)
 ```
 
-### 方法3：转换为Python
+### 修改采样配置
+
+```matlab
+% 编辑收集脚本中的参数
+LAYER_START = 1;         % 起始层
+LAYER_STEP = 2;          % 采样间隔（2 = 隔层采样）
+MAX_LAYERS = 50;         % 每文件最多采集层数
+```
+
+---
+
+## 📝 下一步操作
+
+### 1. 检查数据质量
 
 ```bash
-python matlab_simulation/convert_matlab_to_python.py \
-    "data_simulation_layer25/*.mat" \
-    training \
-    -o training_data
+python check_training_data.py --data_dir "data_simulation_*/layer*.mat"
 ```
 
----
+### 2. 训练模型
 
-## 📐 参数配置
-
-### 修改运动参数
-
-```matlab
-params = physics_parameters();
-params.motion.max_accel = 400;      % mm/s²
-params.motion.max_velocity = 300;   % mm/s
-params.motion.jerk_limit = 10;      % mm/s³
+```bash
+python experiments/train_realtime.py \
+    --data_dir "data_simulation_*/layer*.mat" \
+    --seq_len 20 \
+    --batch_size 256 \
+    --epochs 100
 ```
 
-### 修改热学参数
+### 3. 可视化结果
 
-```matlab
-params.environment.ambient_temp = 25;  % °C
-params.heat_transfer.h_convection_with_fan = 44;  % W/(m²·K)
-params.material.nozzle_temp = 210;  % °C
+```bash
+python experiments/visualize_realtime_correction.py \
+    --checkpoint checkpoints/realtime_corrector/best_model.pth \
+    --gcode test_gcode_files/3DBenchy_PLA_1h28m.gcode \
+    --layer 25
 ```
-
-### 修改采样率
-
-```matlab
-options.time_step = 0.01;  % 10ms (100Hz)
-% options.time_step = 0.005;  % 5ms (200Hz) - 更高质量
-% options.time_step = 0.02;   % 20ms (50Hz) - 更快
-```
-
----
-
-## 🎯 性能指标
-
-### 数据生成
-
-| 指标 | 数值 |
-|------|------|
-| 原始G-code点数 | 33点/层 |
-| 重建后点数 | 2000-5000点/层 |
-| 点数提升 | 60-150倍 |
-| 采样率 | 100 Hz |
-| 生成速度 | ~30秒/仿真（GPU） |
-
-### 数据质量
-
-| 指标 | 数值 | 文献对比 |
-|------|------|---------|
-| 轨迹误差 | 0.3-0.5 mm | 0.3-0.5 mm [8] ✅ |
-| 层间温度（L25） | 60-70°C | 65-75°C [5] ✅ |
-| 粘结强度比 | 0.75-0.90 | 0.60-0.95 [9] ✅ |
 
 ---
 
@@ -290,86 +244,62 @@ options.time_step = 0.01;  % 10ms (100Hz)
 
 ### 问题1：找不到函数
 
-**错误**: `Undefined function 'setup_gpu'`
+**错误**: `Undefined function 'physics_parameters'`
 
 **解决**: 确保添加了路径
 ```matlab
-addpath('matlab_simulation')
+addpath('simulation')
 ```
 
-### 问题2：GPU不可用
+### 问题2：并行池未启动
 
 **错误**: `Parallel Computing Toolbox not found`
 
-**解决**: 会自动使用CPU版本，或检查：
+**解决**: 会自动使用单线程，或手动启动：
 ```matlab
-gpuDeviceCount  % 应该输出2
+parpool('local', 8)  % 启动8个worker
 ```
 
-### 问题3：仿真太慢
+### 问题3：GPU不可用
 
-**原因**: 数据量大，未使用GPU
+**错误**: GPU相关错误
 
-**解决**: 检查GPU设置
-```matlab
-gpu_info = setup_gpu(1);  % 使用cuda1
-fprintf('使用GPU: %d\n', gpu_info.use_gpu);
-```
+**解决**: 并行版本默认使用CPU，GPU不影响数据收集
 
 ---
 
-## 📚 相关文档
+## 📚 版本历史
 
-- **TECHNICAL_DOCUMENTATION.md** - 完整技术文档（公式、算法、推导）
-- **THESIS_WRITING_QUICK_REF.md** - 论文写作速查表
-- **THESIS_DOCUMENTATION.md** - 文献综述和理论基础
-- **USER_GUIDE.md** - 使用指南
-- **QUICK_START.md** - 快速开始
-
----
-
-## 📝 更新日志
-
-### v3.1 (2026-01-29) - 任务拆分与脚本更新
+### v4.0 (2026-02-02) - 并行数据收集系统
 
 **新增**:
-- ✅ `calculate_quality_metrics.m` - 计算隐式质量参数（内应力、孔隙率、尺寸精度、质量评分）
-- ✅ `data/simulation/dataset.py` - Python数据集类，直接加载MATLAB .mat文件
-- ✅ `data/scripts/prepare_training_data.py` - 数据预处理pipeline
-- ✅ `experiments/train_implicit_state_tcn.py` - 隐式状态推断训练（TCN）
-- ✅ `experiments/train_trajectory_correction.py` - 轨迹误差修正训练
-- ✅ `experiments/evaluate_implicit_state_tcn.py` - 隐式状态评估
-- ✅ `experiments/evaluate_trajectory_model.py` - 轨迹误差评估
-- ✅ `docs/SIMULATION_DATA_GUIDE.md` - 完整使用指南
+- ✅ `collect_data_parallel.m` - 并行数据收集（6-10倍加速）
+- ✅ 共享轨迹缓存 - 避免重复解析gcode
+- ✅ 固件效应增强 - Junction Deviation、微步谐振、定时器抖动
+- ✅ 自适应层数检测 - 自动读取gcode文件头
 
 **改进**:
-- ✅ 配置文件明确定义12个输入特征和7个输出特征
-- ✅ 数据转换脚本支持新的质量特征
-- ✅ MATLAB和Python数据完全对齐
-
-**修复**:
-- ✅ 移除转角识别（is_corner）功能
-- ✅ 修正字段名称（jerk_limit → max_jerk）
-- ✅ 修复G-code解析（layer number, type parsing）
-
-### v2.0 (2026-01-27)
-
-**新增**:
-- ✅ `reconstruct_trajectory.m` - 完整轨迹重建
-- ✅ `calculate_thermal_history.m` - 物理驱动热累积模型
-- ✅ `collect_data.m` - 新的主入口（原collect_data_optimized_v2.m）
-
-**改进**:
-- ✅ 采样点数提升60-150倍
-- ✅ 物理一致性显著提升
-- ✅ 热累积模型符合文献验证
+- ✅ 所有收集脚本支持并行
+- ✅ 简化仿真流程（移除热场和质量评估）
+- ✅ 统一仿真接口 `run_simulation.m`
 
 **移除**:
-- ❌ 旧的G-code解析器（parse_gcode.m, parse_gcode_improved.m）
-- ❌ 旧的收集脚本（colleat_data.m, collect_data_optimized.m）
-- ❌ CPU版完整仿真（run_full_simulation.m）
+- ❌ 热场仿真（`simulate_thermal_field.m`）
+- ❌ 质量评估（`calculate_quality_metrics.m`）
+- ❌ 旧版单线程收集脚本
+
+### v3.1 (2026-01-29) - 质量特征
+
+详见 `archives/README_v3.md`
+
+### v2.0 (2026-01-27) - 轨迹重建
+
+详见 `archives/README_v2.md`
 
 ---
 
-**最后更新**: 2026-01-28
-**维护者**: 3D Printer PINN Project Team
+## 📧 联系
+
+**项目**: 3D Printer PINN Project
+**维护**: Project Team
+**许可**: 详见项目根目录 LICENSE 文件

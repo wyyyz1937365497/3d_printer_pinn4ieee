@@ -40,7 +40,7 @@ function collect_data(gcode_files, layer_configs, varargin)
 
 %% Setup
 cd('F:\TJ\3d_print\3d_printer_pinn4ieee');
-addpath(genpath(fullfile(pwd, 'matlab_simulation')));
+addpath(genpath(fullfile(pwd, 'simulation')));
 
 %% 解析输入参数
 p = inputParser;

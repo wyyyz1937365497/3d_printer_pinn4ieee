@@ -20,16 +20,10 @@ function results = simulate_trajectory_error_with_firmware_effects(trajectory_da
 
     fprintf('应用固件效应以增大轨迹误差...\n');
 
-    %% 1. 基础动力学仿真（复用现有模型）
+    %% 1. 基础动力学仿真（CPU模式，用于并行处理）
     fprintf('  [1/4] 基础动力学误差...\n');
-    gpu_info = setup_gpu(1);
-    n_points = length(trajectory_data.time);
-
-    if gpu_info.use_gpu && n_points > 500
-        trajectory_results = simulate_trajectory_error_gpu(trajectory_data, params, gpu_info);
-    else
-        trajectory_results = simulate_trajectory_error(trajectory_data, params);
-    end
+    % 并行环境不使用GPU（避免多个worker竞争GPU资源）
+    trajectory_results = simulate_trajectory_error(trajectory_data, params);
 
     % 初始误差
     error_x = trajectory_results.error_x;
