@@ -1,8 +1,7 @@
 """
-Configuration module for 3D Printer PINN-Seq3D Framework
+Configuration module for 3D Printer PINN Framework
 """
 
-from .base_config import BaseConfig
-from .model_config import ModelConfig, get_config
+from .realtime_config import DATA_CONFIG, MODEL_CONFIG, TRAINING_CONFIG
 
-__all__ = ['BaseConfig', 'ModelConfig', 'get_config']
+__all__ = ['DATA_CONFIG', 'MODEL_CONFIG', 'TRAINING_CONFIG']
