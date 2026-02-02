@@ -1,17 +1,7 @@
 function simulation_data = run_simulation(gcode_file, varargin)
-% RUN_SIMULATION - Unified entry point for FDM 3D printer simulation
+% RUN_SIMULATION - Unified entry point for FDM 3D printer simulation (Simplified)
 %
-% This is the main simulation interface that replaces:
-%   - run_full_simulation.m
-%   - run_full_simulation_gpu.m
-%   - regenerate_all_datasets.m
-%   - test_firmware_effects*.m
-%
-% Features:
-%   - Automatic GPU/CPU selection
-%   - Parameter-based layer control
-%   - Firmware effects simulation (optional)
-%   - Unified output format
+% This is the main simulation interface focused on trajectory error only
 %
 % Syntax:
 %   data = run_simulation(gcode_file)
@@ -23,9 +13,7 @@ function simulation_data = run_simulation(gcode_file, varargin)
 % Name-Value Pairs:
 %   'OutputFile'     - Output .mat file path (default: auto-generated)
 %   'Layers'         - Layer selection (default: 'first')
-%                      Options: 'first', 'all', integer, or array [start, step, end]
 %   'UseGPU'         - GPU selection (default: true)
-%                      Options: true, false, or GPU ID (e.g., 1)
 %   'TimeStep'       - Simulation time step in seconds (default: 0.01)
 %   'IncludeSkirt'   - Include skirt/brim (default: false)
 %   'IncludeType'    - Print types to include (default: {'Outer wall', 'Inner wall'})
@@ -33,28 +21,17 @@ function simulation_data = run_simulation(gcode_file, varargin)
 %   'FirmwareEffects'- Enable firmware effects (default: false)
 %
 % Output:
-%   simulation_data - Structure containing all simulation results
+%   simulation_data - Structure containing simulation results
 %
 % Examples:
-%   % Basic usage - simulate first layer with auto settings
+%   % Basic usage
 %   data = run_simulation('print.gcode');
 %
 %   % Simulate specific layers (25, 50, 75)
 %   data = run_simulation('print.gcode', 'Layers', [25, 25, 75]);
 %
-%   % Simulate layers 10 to 100 with step 5
-%   data = run_simulation('print.gcode', 'Layers', [10, 5, 100]);
-%
-%   % Simulate all layers with custom output
-%   data = run_simulation('print.gcode', 'Layers', 'all', ...
-%                        'OutputFile', 'results/output.mat');
-%
-%   % Force CPU usage
-%   data = run_simulation('print.gcode', 'UseGPU', false);
-%
-%   % High-resolution simulation with firmware effects
-%   data = run_simulation('print.gcode', 'TimeStep', 0.005, ...
-%                        'FirmwareEffects', true);
+%   % Simulate with firmware effects
+%   data = run_simulation('print.gcode', 'FirmwareEffects', true);
 
     %% Parse input arguments
     p = inputParser;
@@ -103,7 +80,7 @@ function simulation_data = run_simulation(gcode_file, varargin)
     %% Print header
     if opts.Verbose
         fprintf('============================================================\n');
-        fprintf('FDM 3D PRINTER SIMULATION (Unified Entry)\n');
+        fprintf('FDM 3D PRINTER SIMULATION (Simplified - Trajectory Only)\n');
         fprintf('============================================================\n');
         fprintf('\n');
         fprintf('Configuration:\n');
@@ -191,33 +168,9 @@ function simulation_data = run_simulation(gcode_file, varargin)
         fprintf('\n');
     end
 
-    %% Step 3: Simulate thermal field
+    %% Step 3: Simulate trajectory error
     if opts.Verbose
-        fprintf('STEP 3: Simulating thermal field...\n');
-    end
-
-    thermal_results = simulate_thermal_field(trajectory_data, params);
-
-    if opts.Verbose
-        fprintf('  Max interface temp: %.1f°C\n', max(thermal_results.T_interface));
-        fprintf('\n');
-    end
-
-    %% Step 4: Calculate quality metrics
-    if opts.Verbose
-        fprintf('STEP 4: Calculating quality metrics...\n');
-    end
-
-    quality_data = calculate_quality_metrics(trajectory_data, thermal_results, params);
-
-    if opts.Verbose
-        fprintf('  Average quality score: %.3f\n', mean(quality_data.quality_score));
-        fprintf('\n');
-    end
-
-    %% Step 5: Simulate trajectory error
-    if opts.Verbose
-        fprintf('STEP 5: Simulating trajectory error...\n');
+        fprintf('STEP 3: Simulating trajectory error...\n');
     end
 
     n_points = length(trajectory_data.time);
@@ -254,13 +207,12 @@ function simulation_data = run_simulation(gcode_file, varargin)
         fprintf('\n');
     end
 
-    %% Step 6: Combine all results
+    %% Step 4: Combine results
     if opts.Verbose
-        fprintf('STEP 6: Combining results...\n');
+        fprintf('STEP 4: Combining results...\n');
     end
 
-    simulation_data = combine_results(trajectory_data, trajectory_results, ...
-                                      thermal_results, quality_data, gpu_info);
+    simulation_data = combine_results(trajectory_data, trajectory_results, gpu_info);
 
     if opts.Verbose
         fprintf('  Total variables: %d\n', length(fieldnames(simulation_data)));
@@ -268,9 +220,9 @@ function simulation_data = run_simulation(gcode_file, varargin)
         fprintf('\n');
     end
 
-    %% Step 7: Save to file
+    %% Step 5: Save to file
     if opts.Verbose
-        fprintf('STEP 7: Saving simulation results...\n');
+        fprintf('STEP 5: Saving simulation results...\n');
     end
 
     % Ensure output directory exists
@@ -286,15 +238,15 @@ function simulation_data = run_simulation(gcode_file, varargin)
         fprintf('\n');
     end
 
-    %% Step 8: Print summary
+    %% Step 6: Print summary
     if opts.Verbose
         print_simulation_summary(simulation_data, gpu_info);
     end
 
 end
 
-%% Helper function: Combine all simulation results
-function data = combine_results(trajectory, trajectory_err, thermal, quality, gpu_info)
+%% Helper function: Combine simulation results
+function data = combine_results(trajectory, trajectory_err, gpu_info)
 
     t = trajectory.time;
 
@@ -313,67 +265,70 @@ function data = combine_results(trajectory, trajectory_err, thermal, quality, gp
     data.y_act = trajectory_err.y_act(:);
     data.z_act = trajectory_err.z_act(:);
 
-    % Kinematics
+    % Kinematics - Reference
     data.vx_ref = trajectory.vx(:);
     data.vy_ref = trajectory.vy(:);
     data.vz_ref = trajectory.vz(:);
-    data.vx_act = trajectory_err.vx_act(:);
-    data.vy_act = trajectory_err.vy_act(:);
-    data.vz_act = trajectory_err.vz_act(:);
-    data.v_mag_ref = trajectory.v_actual(:);
+    data.v_mag_ref = sqrt(trajectory.vx(:).^2 + trajectory.vy(:).^2 + trajectory.vz(:).^2);
 
     data.ax_ref = trajectory.ax(:);
     data.ay_ref = trajectory.ay(:);
     data.az_ref = trajectory.az(:);
-    data.ax_act = trajectory_err.ax_act(:);
-    data.ay_act = trajectory_err.ay_act(:);
-    data.az_act = trajectory_err.az_act(:);
-    data.a_mag_ref = trajectory.acceleration(:);
+    data.a_mag_ref = sqrt(trajectory.ax(:).^2 + trajectory.ay(:).^2 + trajectory.az(:).^2);
 
     data.jx_ref = trajectory.jx(:);
     data.jy_ref = trajectory.jy(:);
     data.jz_ref = trajectory.jz(:);
-    data.jerk_mag = trajectory.jerk(:);
+    data.jerk_mag = sqrt(trajectory.jx(:).^2 + trajectory.jy(:).^2 + trajectory.jz(:).^2);
+
+    % Kinematics - Actual (from trajectory error simulation)
+    if isfield(trajectory_err, 'vx_act')
+        data.vx_act = trajectory_err.vx_act(:);
+        data.vy_act = trajectory_err.vy_act(:);
+        data.vz_act = trajectory_err.vz_act(:);
+    else
+        data.vx_act = data.vx_ref;  % Fallback
+        data.vy_act = data.vy_ref;
+        data.vz_act = data.vz_ref;
+    end
+
+    if isfield(trajectory_err, 'ax_act')
+        data.ax_act = trajectory_err.ax_act(:);
+        data.ay_act = trajectory_err.ay_act(:);
+        data.az_act = trajectory_err.az_act(:);
+    else
+        data.ax_act = data.ax_ref;  % Fallback
+        data.ay_act = data.ay_ref;
+        data.az_act = data.az_ref;
+    end
 
     % Dynamics
-    data.F_inertia_x = trajectory_err.F_inertia_x(:);
-    data.F_inertia_y = trajectory_err.F_inertia_y(:);
-    data.F_elastic_x = trajectory_err.F_elastic_x(:);
-    data.F_elastic_y = trajectory_err.F_elastic_y(:);
-    data.belt_stretch_x = trajectory_err.belt_stretch_x(:);
-    data.belt_stretch_y = trajectory_err.belt_stretch_y(:);
+    if isfield(trajectory_err, 'F_inertia_x')
+        data.F_inertia_x = trajectory_err.F_inertia_x(:);
+        data.F_inertia_y = trajectory_err.F_inertia_y(:);
+        data.F_elastic_x = trajectory_err.F_elastic_x(:);
+        data.F_elastic_y = trajectory_err.F_elastic_y(:);
+        data.belt_stretch_x = trajectory_err.belt_stretch_x(:);
+        data.belt_stretch_y = trajectory_err.belt_stretch_y(:);
+    end
 
     % Errors
     data.error_x = trajectory_err.error_x(:);
     data.error_y = trajectory_err.error_y(:);
     data.error_magnitude = trajectory_err.error_magnitude(:);
-    data.error_direction = trajectory_err.error_direction(:);
+
+    if isfield(trajectory_err, 'error_direction')
+        data.error_direction = trajectory_err.error_direction(:);
+    end
 
     % G-code features
     data.is_extruding = trajectory.is_extruding(:);
-    data.is_travel = trajectory.is_travel(:);
+    data.is_travel = ~trajectory.is_extruding;
     data.is_corner = trajectory.is_corner(:);
     data.corner_angle = trajectory.corner_angle(:);
     data.curvature = trajectory.curvature(:);
     data.layer_num = trajectory.layer_num(:);
     data.dist_from_last_corner = trajectory.dist_from_last_corner(:);
-
-    % Thermal
-    data.T_nozzle = thermal.T_nozzle_history(:);
-    data.T_interface = thermal.T_interface(:);
-    data.T_surface = thermal.T_surface(:);
-    data.cooling_rate = thermal.cooling_rate(:);
-    data.temp_gradient_z = thermal.temp_gradient_z(:);
-    data.interlayer_time = thermal.interlayer_time(:);
-
-    % Adhesion
-    data.adhesion_ratio = thermal.adhesion_ratio(:);
-
-    % Quality metrics
-    data.internal_stress = quality.internal_stress(:);
-    data.porosity = quality.porosity(:);
-    data.dimensional_accuracy = quality.dimensional_accuracy(:);
-    data.quality_score = quality.quality_score(:);
 
     % System info
     data.params = trajectory.params;
@@ -418,24 +373,6 @@ function print_simulation_summary(data, gpu_info)
     fprintf('  Max: %.3f mm\n', max(data.error_magnitude));
     fprintf('  Mean: %.3f mm\n', mean(data.error_magnitude));
     fprintf('  RMS: %.3f mm\n', rms(data.error_magnitude));
-    fprintf('\n');
-
-    % Thermal
-    fprintf('THERMAL:\n');
-    fprintf('  Max nozzle temp: %.1f°C\n', max(data.T_nozzle));
-    fprintf('  Mean interface temp: %.1f°C\n', ...
-            mean(data.T_interface(data.is_extruding)));
-    fprintf('  Max cooling rate: %.1f°C/s\n', abs(min(data.cooling_rate)));
-    fprintf('\n');
-
-    % Quality
-    fprintf('QUALITY:\n');
-    fprintf('  Internal stress: %.2f ± %.2f MPa\n', ...
-            mean(data.internal_stress), std(data.internal_stress));
-    fprintf('  Porosity: %.2f ± %.2f %%\n', ...
-            mean(data.porosity), std(data.porosity));
-    fprintf('  Quality score: %.3f ± %.3f\n', ...
-            mean(data.quality_score), std(data.quality_score));
     fprintf('\n');
 
     fprintf('============================================================\n');
