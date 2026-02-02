@@ -146,6 +146,44 @@ archives/
 
 ---
 
+## Theory Archives
+
+### thermal_model.md (moved from theory/)
+
+**Content**: Complete heat transfer model for FDM printing including conduction, convection, radiation, and moving heat source models.
+
+**Why archived**: Project focus changed from multi-physics modeling to trajectory correction only. Temperature field modeling is no longer needed for the current scope.
+
+**Content summary**:
+- Heat conduction equation and thermal diffusivity
+- Newton's law of cooling and convection
+- Moving heat source model (Gaussian distribution)
+- Simplified point tracking algorithm
+- Three-phase temperature evolution (heating, cooling, diffusion)
+- MATLAB implementation code
+
+**Note**: Comprehensive thermal modeling documentation. If later work requires temperature-dependent effects (e.g., thermal expansion, material properties), this document provides the foundation.
+
+---
+
+### adhesion_model.md (moved from theory/)
+
+**Content**: Wool-O'Connor polymer healing model for predicting layer adhesion strength in FDM printing.
+
+**Why archived**: Layer adhesion and quality prediction were part of the implicit state inference task that has been removed.
+
+**Content summary**:
+- Wool-O'Connor polymer healing model
+- Temperature-dependent healing time constants
+- Interface temperature calculation
+- Strength prediction based on healing time
+- Critical parameters for PLA (Tg, Tm, Ea)
+- Validation against literature
+
+**Note**: If later work extends to quality prediction (pore formation, internal stress, strength), this document provides the theoretical foundation.
+
+---
+
 ## Other Archives
 
 ### DIVERSITY_RECOMMENDATIONS.md

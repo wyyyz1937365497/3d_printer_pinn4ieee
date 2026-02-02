@@ -474,13 +474,13 @@ Damping has the **largest effect** on transient errors, but it's also the most u
 ## References
 
 **See Also**:
-- [Formula Library](formulas.md#dynamics-equations) - Complete equation list with LaTeX code
+- [Formula Library](formulas.md#trajectory-dynamics) - Complete equation list with LaTeX code
 - [Firmware Effects](../methods/firmware_effects.md) - Junction deviation and microstep resonance
 - [Simulation System](../methods/simulation_system.md) - Implementation details
-- [Thermal Model](thermal_model.md) - Temperature effects on material properties
+- [Neural Network](../methods/neural_network.md) - LSTM-based error prediction model
 
 **Related Documents**:
-- [Next]: [Thermal Model](thermal_model.md)
+- [Next]: [Neural Network](../methods/neural_network.md)
 - [Previous]: [Overview](overview.md)
 
 **Literature Cited**:
