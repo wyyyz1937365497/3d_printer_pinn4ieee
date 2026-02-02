@@ -49,8 +49,8 @@ The remainder of this paper is organized as follows. Section 2 reviews related w
 
 ### 2.2 Error Modeling in FDM
 - [Kinematic errors: backlash, elastic deformation]
-- [Dynamic errors: inertia, vibration]
-- [Process errors: thermal contraction, oozing]
+- [Dynamic errors: inertia, vibration, resonance]
+- [Firmware-induced errors: junction deviation, timer jitter]
 - [Modeling approaches: analytical, empirical, data-driven]
 
 ### 2.3 Machine Learning in 3D Printing
