@@ -123,8 +123,18 @@ python trajectory_plots.py --test  # Generate test plots
 - [固件增强仿真系统_技术文档.md](archives/chinese_notes/固件增强仿真系统_技术文档.md) - Firmware effects (中文)
 - [数据收集与训练指南.md](archives/chinese_notes/数据收集与训练指南.md) - Data guide (中文)
 
+#### Guides (Temporary Documentation)
+- [DATA_REGENERATION_GUIDE.md](archives/guides/DATA_REGENERATION_GUIDE.md) - Data regeneration with updated physics parameters
+- [PARALLEL_INSTRUCTIONS.md](archives/guides/PARALLEL_INSTRUCTIONS.md) - Parallel data collection instructions
+- [PERFORMANCE_OPTIMIZATION.md](archives/guides/PERFORMANCE_OPTIMIZATION.md) - Performance optimization guide
+- [PHYSICS_IMPROVEMENTS.md](archives/guides/PHYSICS_IMPROVEMENTS.md) - Physics constraint improvements
+
+#### History (Project Evolution)
+- [REBUILD_SUMMARY.md](archives/history/REBUILD_SUMMARY.md) - Real-time correction system rebuild summary
+- [REORGANIZATION_NOTES.md](archives/history/REORGANIZATION_NOTES.md) - Project reorganization notes
+
 #### Old Documents
-- [old_docs.md](archives/old_docs.md) - Index of deprecated documentation
+- [old_docs.md](archives/old_docs.md) - Index of deprecated documentation (including archived thermal/adhesion models)
 
 ---
 
@@ -136,8 +146,13 @@ python trajectory_plots.py --test  # Generate test plots
 - **Results**: 4 documents
 - **Figures**: 3 template scripts + examples
 - **Writing**: Complete template system (structure, sections, LaTeX, phrases)
-- **Archives**: Quick reference, Chinese notes, old docs (including archived thermal/adhesion models)
-- **Total**: 20+ core documents
+- **Archives**:
+  - Quick reference: 3 documents
+  - Chinese notes: 3 documents
+  - Guides: 4 documents (data regeneration, parallel collection, performance, physics)
+  - History: 2 documents (rebuild summary, reorganization notes)
+  - Old docs: Index of deprecated documentation
+- **Total**: 25+ core documents + 12+ archived documents
 
 ---
 

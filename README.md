@@ -1,20 +1,19 @@
-# 3D Printer PINN - Physics-Informed Neural Network for Quality Prediction
+# 3D Printer PINN - Real-Time Trajectory Error Correction
 
-基于物理信息的神经网络，用于FDM 3D打印质量预测和轨迹校正。
+基于物理信息的神经网络，用于FDM 3D打印实时轨迹误差预测与补偿。
 
 ## 项目概述
 
-本项目使用MATLAB仿真生成训练数据，Python训练PINN模型，实现：
-- **轨迹误差预测**（基于二阶动力学系统）
-- **质量特征预测**（内应力、孔隙率、尺寸精度等）
-- **层间粘结强度预测**（基于热传导模型）
-- **打印质量实时评估**
+本项目使用MATLAB仿真生成训练数据，Python训练轻量级LSTM模型，实现：
+- **实时轨迹误差预测**（基于二阶动力学系统）
+- **轻量级网络架构**（38K参数，<1ms推理）
+- **固件级误差建模**（junction deviation, microstepping resonance, timer jitter）
 
 **关键特性**:
 - 基于物理的仿真（Ender-3 V2 + PLA材料参数）
-- GPU加速数据生成（2-5倍效率提升）
-- 优化的数据生成策略（单层参数扫描 + 三层验证）
-- 完整的MATLAB→Python数据转换流程
+- GPU加速数据生成（10-13倍效率提升）
+- 纯LSTM架构（4维输入→2维输出，单步预测）
+- 完整的MATLAB→Python训练→评估流程
 
 ---
 
@@ -23,228 +22,266 @@
 ### 1. 生成训练数据（MATLAB）
 
 ```matlab
-cd('F:\TJ\3d_print\3d_printer_pinn4ieee')
-collect_data
+% 采样策略：每5层采样一次（推荐）
+collect_3dbenchy('sampled:5');   % ~10 layers
+collect_bearing5('sampled:5');   % ~10 layers
+collect_nautilus('sampled:5');   % ~10 layers
+collect_boat('sampled:5');       % ~10 layers
 ```
 
 **预期结果**:
-- ~109,000 训练样本
-- 仿真时间: ~1.5 小时（GPU）
+- ~40层 × 2分钟/层 = ~80分钟
+- ~36,000样本点
+- RMS误差: ~140 μm（固件增强仿真）
 
-### 2. 训练模型（Python）
+### 2. 准备训练数据（Python）
 
 ```bash
-# 隐式状态推断模型（TCN）
-python experiments/train_implicit_state_tcn.py \
-    --data_dir data_simulation_3DBenchy_PLA_1h28m_layers_* \
-    --epochs 50 \
-    --batch_size 64
-
-# 轨迹误差修正模型
-python experiments/train_trajectory_correction.py \
-    --data_dir data_simulation_3DBenchy_PLA_1h28m_layers_* \
-    --epochs 50 \
-    --batch_size 64
+python data/scripts/prepare_training_data.py \
+    --data_dirs data_simulation_* \
+    --output_dir data/processed \
+    --sequence_length 20 \
+    --stride 4
 ```
 
-### 3. 评估模型
+**输出格式**:
+- 特征: [batch, 20, 4] - [x_ref, y_ref, vx_ref, vy_ref]
+- 标签: [batch, 2] - [error_x, error_y]
+
+### 3. 训练模型（Python）
 
 ```bash
-python experiments/evaluate_implicit_state_tcn.py \
-    --model_path checkpoints/implicit_state_tcn/best_model.pth \
-    --data_path data_simulation_3DBenchy_PLA_1h28m_layers_*/layer*.mat
+python experiments/train_realtime.py \
+    --data_root data/processed \
+    --batch_size 256 \
+    --epochs 100 \
+    --lr 1e-3 \
+    --device cuda:0
+```
 
-python experiments/evaluate_trajectory_model.py \
-    --model_path checkpoints/trajectory_correction/best_model.pth \
-    --data_path data_simulation_3DBenchy_PLA_1h28m_layers_*/layer*.mat
+**训练特性**:
+- 混合精度训练 (FP16)
+- AdamW优化器 + 余弦退火调度
+- 早停机制 (patience=15)
+
+**预期结果**:
+- 训练时间: ~2小时 (GPU)
+- MAE: ~0.015 mm
+- R²: ~0.89
+
+### 4. 评估模型
+
+```bash
+python experiments/evaluate_realtime.py \
+    --checkpoint checkpoints/realtime_corrector/best_model.pth \
+    --data_root data/processed/test
 ```
 
 ---
 
 ## 文档导航
 
-### 📚 核心文档
+### 📚 完整文档索引
 
-| 文档 | 用途 |
-|------|------|
-| **[docs/SIMULATION_DATA_GUIDE.md](docs/SIMULATION_DATA_GUIDE.md)** | 完整使用指南（数据生成→训练→评估） |
-| **[matlab_simulation/README.md](matlab_simulation/README.md)** | MATLAB仿真系统文档 |
-| **[docs/THESIS_DOCUMENTATION.md](docs/THESIS_DOCUMENTATION.md)** | 论文写作参考（文献综述、理论） ⭐ |
-| **[docs/TECHNICAL_DOCUMENTATION.md](docs/TECHNICAL_DOCUMENTATION.md)** | 完整技术文档（公式、算法） ⭐ |
+详见: **[docs/README.md](docs/README.md)** ⭐
 
-### 📖 快速查找
+### 核心文档分类
 
-- **完整工作流程** → [docs/SIMULATION_DATA_GUIDE.md](docs/SIMULATION_DATA_GUIDE.md)
-- **MATLAB仿真详解** → [matlab_simulation/README.md](matlab_simulation/README.md)
-- **Python数据加载** → [docs/SIMULATION_DATA_GUIDE.md](docs/SIMULATION_DATA_GUIDE.md#python数据加载)
-- **模型训练** → [docs/SIMULATION_DATA_GUIDE.md](docs/SIMULATION_DATA_GUIDE.md#模型训练)
-- **模型评估** → [docs/SIMULATION_DATA_GUIDE.md](docs/SIMULATION_DATA_GUIDE.md#模型评估)
-- **论文写作材料** → [docs/THESIS_DOCUMENTATION.md](docs/THESIS_DOCUMENTATION.md) ⭐
-- **物理公式推导** → [docs/TECHNICAL_DOCUMENTATION.md](docs/TECHNICAL_DOCUMENTATION.md) ⭐
+**📘 理论基础** ([docs/theory/](docs/theory/))
+- [公式库](docs/theory/formulas.md) ⭐ - 所有物理方程和LaTeX代码
+- [轨迹动力学](docs/theory/trajectory_dynamics.md) - 二阶系统建模
+
+**📗 方法实现** ([docs/methods/](docs/methods/))
+- [仿真系统](docs/methods/simulation_system.md) - MATLAB仿真架构
+- [固件效应](docs/methods/firmware_effects.md) - Marlin固件误差源
+- [数据生成](docs/methods/data_generation.md) - 训练数据生成策略
+- [神经网络](docs/methods/neural_network.md) - LSTM架构设计
+- [训练流程](docs/methods/training_pipeline.md) - 端到端训练指南
+
+**📙 实验设计** ([docs/experiments/](docs/experiments/))
+- [实验设置](docs/experiments/setup.md) - 打印机配置和参数
+- [数据集](docs/experiments/datasets.md) - 数据统计和格式
+- [评估指标](docs/experiments/metrics.md) - 性能评估方法
+
+**✍️ 论文写作** ([docs/writing/](docs/writing/))
+- [结构模板](docs/writing/structure_template.md) ⭐ - IEEE论文模板
+- [章节模板](docs/writing/section_templates/) - 各章节写作模板
+- [LaTeX资源](docs/writing/latex/) - 自定义命令和参考文献
+- [句式库](docs/writing/phrase_bank/) - 写作句式参考
+
+---
+
+## 系统架构
+
+### 1. 物理仿真（MATLAB）
+
+**二阶动力学系统**:
+```
+m·ẍ + c·ẋ + k·x = -m·a_ref(t)
+```
+
+**固件级误差建模**:
+- Junction Deviation（转角偏差）
+- Microstep Resonance（步进共振）
+- Timer Jitter（定时器抖动）
+
+**输出**: 参考轨迹 + 误差向量
+
+### 2. 神经网络（PyTorch）
+
+**轻量级LSTM架构**:
+```
+输入 [20, 4] → 编码器(32) → LSTM(56×2) → 输出(2)
+```
+
+**性能指标**:
+- 参数量: ~38K
+- 推理时间: 0.3-0.6 ms
+- 满足实时要求 (< 1ms)
+
+### 3. 训练流程
+
+```
+仿真数据 → 预处理 → 划分 → 训练 → 验证 → 测试
+```
 
 ---
 
 ## 项目结构
 
 ```
-.
-├── matlab_simulation/           # MATLAB仿真系统
-│   ├── physics_parameters.m     # 物理参数（Ender-3 V2 + PLA）
-│   ├── parse_gcode_improved.m   # G-code解析器
-│   ├── simulate_trajectory_error.m   # 轨迹误差模型
-│   ├── simulate_trajectory_error_gpu.m # GPU加速版
-│   ├── simulate_thermal_field.m  # 温度场模型
-│   ├── run_full_simulation_gpu.m # GPU完整仿真流程
-│   └── convert_matlab_to_python.py   # MATLAB→Python转换
+3d_printer_pinn4ieee/
+├── simulation/                 # MATLAB仿真系统
+│   ├── +planner/              # 轨迹规划模块
+│   ├── +stepper/              # 固件效应模块
+│   ├── physics_parameters.m   # 物理参数配置
+│   └── run_simulation.m       # 仿真入口
 │
-├── collect_data_optimized.m     # ⭐ 优化数据收集入口
+├── data/                      # Python数据处理
+│   ├── realtime_dataset.py    # 4维数据集
+│   └── scripts/               # 数据准备脚本
 │
-├── docs/                        # 文档
-│   ├── QUICK_START.md          # 快速开始
-│   ├── USER_GUIDE.md            # 完整使用指南
-│   └── THESIS_DOCUMENTATION.md # 论文写作参考
+├── models/                    # 神经网络模型
+│   └── realtime_corrector.py  # LSTM预测器
 │
-└── experiments/                 # Python训练实验
-    ├── train_implicit_state_tcn.py
-    ├── train_trajectory_correction.py
-    ├── evaluate_implicit_state_tcn.py
-    └── evaluate_trajectory_model.py
+├── config/                    # 配置文件
+│   └── realtime_config.py     # 训练配置
+│
+├── experiments/               # 训练和评估
+│   ├── train_realtime.py      # 训练脚本
+│   ├── evaluate_realtime.py   # 评估脚本
+│   └── visualize_realtime.py  # 可视化脚本
+│
+├── docs/                      # 完整文档系统 ⭐
+│   ├── theory/                # 理论文档
+│   ├── methods/               # 方法论文档
+│   ├── experiments/           # 实验文档
+│   ├── writing/               # 论文写作资源
+│   └── archives/              # 归档文档
+│       ├── guides/            # 临时指南
+│       ├── history/           # 历史记录
+│       └── chinese_notes/     # 中文笔记
+│
+├── checkpoints/               # 模型检查点
+│   └── realtime_corrector/    # 实时修正模型
+│
+├── evaluation_results/        # 评估结果
+└── results/                   # 可视化输出
 ```
 
 ---
 
-## 核心特性
+## 关键参数
 
-### 1. 基于物理的仿真
+### 物理参数（Ender-3 V2）
 
-**轨迹误差模型**（二阶动力学系统）:
-- 运动方程: `m·x'' + c·x' + k·x = F_inertia`
-- 输出向量误差: `error_x`, `error_y`
-- 考虑皮带弹性、惯性力、阻尼
+| 参数 | X轴 | Y轴 | 单位 |
+|------|-----|-----|------|
+| 质量 | 0.485 | 0.650 | kg |
+| 刚度 | 150,000 | 150,000 | N/m |
+| 阻尼 | 25 | 25 | N·s/m |
 
-**温度场模型**（移动热源）:
-- 热传导: `∂T/∂t = α·∇²T + Q_source - Q_cooling`
-- Wool-O'Connor聚合物愈合模型
-- 层间粘结强度预测
+### 网络参数
 
-### 2. GPU加速
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| input_size | 4 | [x_ref, y_ref, vx_ref, vy_ref] |
+| hidden_size | 56 | LSTM隐藏单元 |
+| num_layers | 2 | LSTM层数 |
+| seq_len | 20 | 序列长度 (0.2s @ 100Hz) |
+| pred_len | 1 | 单步预测 |
+| dropout | 0.1 | Dropout比例 |
 
-- 使用cuda1（不影响cuda0上的训练）
-- 4-13倍加速（数据量>10K点）
-- 自动CPU fallback
+### 训练参数
 
-### 3. 优化数据生成策略
-
-**关键发现**: 所有层形状相同
-
-**优化效果**:
-- 仿真时间: 2-3天 → 1.5小时（**30-40倍提升**）
-- 数据质量: 6.9倍样本提升
-- 参数覆盖: 180种配置 vs 原来的少量配置
-
-**策略**: 单层参数扫描 + 三层验证
-- 几何多样性: 从单层提取
-- 物理多样性: 从参数变化获得
-- 层间效应: 三层验证覆盖
-
----
-
-## 系统要求
-
-### MATLAB
-
-- MATLAB R2020a或更高版本
-- Parallel Computing Toolbox（GPU加速）
-- Signal Processing Toolbox（可选）
-- 统计与机器学习工具箱（可选）
-
-### Python
-
-- Python 3.8+
-- PyTorch 1.12+
-- NumPy, SciPy, h5py, pandas
-
-### 硬件
-
-- GPU: 至少1个（推荐2个）
-- 内存: 8GB+
-- 存储: 10GB+（用于数据集）
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| batch_size | 256 | 批大小 |
+| epochs | 100 | 训练轮数 |
+| lr | 1e-3 | 初始学习率 |
+| weight_decay | 1e-4 | L2正则化 |
 
 ---
 
 ## 性能基准
 
-| 数据量 | CPU时间 | GPU时间 | 样本数 |
-|--------|---------|---------|--------|
-| 单次仿真 | ~2分钟 | ~30秒 | 3K点 |
-| 优化模式 | - | 1.5小时 | 100K+ |
-| 原策略 | 2-3天 | - | 4.2K |
+### 数据生成
+
+| 场景 | 层数 | 时间 | 样本数 |
+|------|------|------|--------|
+| 单模型 | ~10 | ~20 min | ~9,000 |
+| 4模型 | ~40 | ~80 min | ~36,000 |
+
+### 模型性能
+
+| 指标 | 目标 | 实测 |
+|------|------|------|
+| 参数量 | < 50K | ~38K |
+| 推理时间 | < 1ms | 0.3-0.6ms |
+| MAE | < 0.02mm | ~0.015mm |
+| R² | > 0.8 | ~0.89 |
+
+### 训练效率
+
+| 硬件 | 批大小 | 每轮时间 | 总时间 |
+|------|--------|----------|--------|
+| GPU (RTX 3080) | 256 | ~1 min | ~2小时 |
+| GPU (GTX 1080) | 256 | ~2 min | ~3小时 |
 
 ---
 
-## 典型工作流
+## 系统要求
 
-```matlab
-% === 1. 快速测试 (5分钟) ===
-addpath('matlab_simulation')
-data = run_full_simulation_gpu('Tremendous Hillar_PLA_17m1s.gcode', ...
-                               'test.mat', [], 1);
+### MATLAB（数据生成）
 
-% === 2. 检查结果 ===
-load('test.mat');
-fprintf('点数: %d, 最大误差: %.3f mm\n', ...
-        length(simulation_data.time), ...
-        max(simulation_data.error_magnitude));
+- MATLAB R2020a或更高
+- Parallel Computing Toolbox（GPU加速，可选）
+- 推荐配置：8GB RAM，GPU（8GB+ VRAM）
 
-% === 3. 生成完整数据集 (1.5小时) ===
-collect_data_optimized
-```
+### Python（模型训练）
 
-```bash
-# === 4. 转换为Python格式 (10分钟) ===
-python matlab_simulation/convert_matlab_to_python.py \
-    "data_simulation_layer25/*.mat" \
-    training \
-    -o training_data
-```
+- Python 3.8+
+- PyTorch 1.10+
+- NumPy, SciPy, Pandas, h5py
+- Matplotlib, Seaborn（可视化）
+- TensorBoard（可选，监控训练）
 
-```python
-# === 5. 训练模型 ===
-python experiments/train_unified_model.py
-```
+### 硬件要求
 
----
+**最小配置**:
+- CPU: 4核
+- RAM: 8 GB
+- GPU: 无（CPU模式，10×慢）
 
-## 常见问题
+**推荐配置**:
+- CPU: 8核
+- RAM: 16 GB
+- GPU: GTX 1080或更好（8GB VRAM）
 
-### Q: 为什么优化策略这么快？
-
-A: 因为发现每一层形状相同，不需要仿真所有50层。单层已包含所有几何特征，参数扫描提供物理多样性。详见 [docs/USER_GUIDE.md](docs/USER_GUIDE.md) 优化策略。
-
-### Q: 如何使用GPU加速？
-
-A: 默认的`collect_data_optimized`已自动使用cuda1。手动使用：
-```matlab
-data = run_full_simulation_gpu('file.gcode', 'output.mat', [], 1);
-```
-详见 [docs/USER_GUIDE.md](docs/USER_GUIDE.md) GPU加速。
-
-### Q: 需要多少数据？
-
-A: 对于5.69M参数的模型，推荐80,000-100,000样本。优化模式一次生成109,200样本（含增强）。详见 [docs/THESIS_DOCUMENTATION.md](docs/THESIS_DOCUMENTATION.md)。
-
-### Q: 如何修改物理参数？
-
-A: 编辑`matlab_simulation/physics_parameters.m`或在脚本中覆盖：
-```matlab
-params = physics_parameters();
-params.motion.max_accel = 400;
-```
-详见 [docs/USER_GUIDE.md](docs/USER_GUIDE.md) 参数配置。
-
-### Q: 转换Python时出错？
-
-A: 确保安装依赖：`pip install numpy scipy h5py pandas`。详见 [docs/USER_GUIDE.md](docs/USER_GUIDE.md) 故障排除。
+**理想配置**:
+- CPU: 16核
+- RAM: 32 GB
+- GPU: RTX 3080或更好（10GB+ VRAM）
 
 ---
 
@@ -253,8 +290,8 @@ A: 确保安装依赖：`pip install numpy scipy h5py pandas`。详见 [docs/USE
 如果本项目对你有帮助，请引用：
 
 ```bibtex
-@misc{3d_printer_pinn,
-  title={Physics-Informed Neural Network for 3D Printer Quality Prediction},
+@misc{3d_printer_pinn_realtime,
+  title={Physics-Informed Neural Network for Real-Time Trajectory Error Correction in FDM 3D Printing},
   author={Your Name},
   year={2026},
   url={https://github.com/yourusername/3d_printer_pinn4ieee}
@@ -269,19 +306,17 @@ MIT License
 
 ---
 
-## 更新日志
+## 快速链接
 
-### v1.0 (2026-01-27)
-- ✅ 完整MATLAB仿真系统
-- ✅ GPU加速支持（cuda1）
-- ✅ 优化数据生成策略（30-40倍提升）
-- ✅ MATLAB→Python数据转换
-- ✅ 完整文档系统
+- 📖 **完整文档**: [docs/README.md](docs/README.md)
+- 🚀 **快速开始**: [docs/archives/quick_ref/QUICK_START_ENHANCED.md](docs/archives/quick_ref/QUICK_START_ENHANCED.md)
+- 🔧 **仿真系统**: [docs/methods/simulation_system.md](docs/methods/simulation_system.md)
+- 🧠 **网络架构**: [docs/methods/neural_network.md](docs/methods/neural_network.md)
+- 📊 **训练流程**: [docs/methods/training_pipeline.md](docs/methods/training_pipeline.md)
+- ✍️ **论文写作**: [docs/writing/structure_template.md](docs/writing/structure_template.md)
 
 ---
 
-**开始使用**: [docs/QUICK_START.md](docs/QUICK_START.md)
+**当前分支**: `feature/realtime-correction`
 
-**完整指南**: [docs/USER_GUIDE.md](docs/USER_GUIDE.md)
-
-**论文参考**: [docs/THESIS_DOCUMENTATION.md](docs/THESIS_DOCUMENTATION.md)
+**最后更新**: 2026-02-02
