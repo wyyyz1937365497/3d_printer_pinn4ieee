@@ -45,7 +45,7 @@ collect_bearing5('sampled:5');
 ### Strategy 2: Representative Layers
 
 Select layers representing different regions:
-- Layer 1: First layer (bed adhesion, different dynamics)
+- Layer 1: First layer (different dynamics, lower speeds)
 - Layer 25: Middle layer (typical)
 - Layer 48: Last layer (minimal support)
 
@@ -395,7 +395,7 @@ Sweeping these parameters ensures the network sees diverse error conditions.
 ### Why Sampled Layers?
 
 Printing errors vary by layer height and geometry:
-- Lower layers: More support, bed adhesion effects
+- Lower layers: More support, different dynamics
 - Middle layers: Typical behavior
 - Upper layers: Less support, more vibration
 
