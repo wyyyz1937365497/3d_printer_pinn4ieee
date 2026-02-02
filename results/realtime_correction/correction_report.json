@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-02-02T14:43:10.115384",
+  "uncorrected": {
+    "mean_error_um": 52.205534851672105,
+    "max_error_um": 144.73895873872127,
+    "std_error_um": 29.161992102456264
+  },
+  "corrected": {
+    "mean_error_um": 72.88628246862838,
+    "max_error_um": 186.62742493775053,
+    "std_error_um": 35.676953181854756
+  },
+  "improvement": {
+    "mean_improvement_percent": -141.2505287589018,
+    "median_improvement_percent": -58.56105059813742,
+    "mean_error_reduction_percent": -39.614090106949426
+  },
+  "performance": {
+    "mean_inference_time_ms": 1.362814054404145,
+    "max_inference_time_ms": 365.2878,
+    "throughput_predictions_per_sec": 733.7758197960645,
+    "realtime_capable": false
+  }
+}

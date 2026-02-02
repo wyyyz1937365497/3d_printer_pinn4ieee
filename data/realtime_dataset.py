@@ -149,24 +149,28 @@ class RealTimeTrajectoryDataset(Dataset):
 
         print(f"  创建了 {self.sequences.shape[0]:,} 个序列")
 
-        # 归一化
+        # 归一化输入特征（输出误差不归一化，因为其范围不确定）
         if scaler is None:
             self.scaler = StandardScaler()
             # 总是拟合scaler
             all_features_for_fit = self.all_features.reshape(-1, 4)
             self.scaler.fit(all_features_for_fit)
-            print(f"  Scaler已拟合")
+            print(f"  输入Scaler已拟合")
+            print(f"  注意: 输出误差不归一化，模型将学习原始误差值")
         else:
             self.scaler = scaler
             print(f"  使用提供的scaler")
 
-        # 应用scaler
+        # 应用scaler到输入
         original_shape = self.sequences.shape
         self.sequences = self.scaler.transform(
             self.sequences.reshape(-1, 4)
         ).reshape(original_shape)
 
+        # 输出误差保持原始尺度（mm单位）
         print(f"  数据形状: sequences={self.sequences.shape}, targets={self.targets.shape}")
+        print(f"  输出误差范围: X=[{self.all_labels[:,0].min()*1000:.2f}, {self.all_labels[:,0].max()*1000:.2f}] μm")
+        print(f"                Y=[{self.all_labels[:,1].min()*1000:.2f}, {self.all_labels[:,1].max()*1000:.2f}] μm")
 
     def __len__(self):
         return len(self.sequences)

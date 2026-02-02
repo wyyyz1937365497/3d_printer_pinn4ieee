@@ -23,7 +23,7 @@ import argparse
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
-import matlab.engine
+import matlab.engine as matlab_engine
 import json
 from datetime import datetime
 
@@ -56,7 +56,7 @@ def run_matlab_simulation(gcode_file, layer_num, checkpoint_path, output_dir):
 
     # 启动MATLAB引擎
     print(f"\n启动MATLAB引擎...")
-    matlab = matlab.engine.start_matlab()
+    matlab = matlab_engine.start_matlab()
     print("  ✓ MATLAB启动成功")
 
     # 添加仿真路径
@@ -101,7 +101,7 @@ def run_matlab_simulation(gcode_file, layer_num, checkpoint_path, output_dir):
     print(f"\n加载仿真结果: {result_file}")
 
     # 使用MATLAB加载（因为保存的是v7.3格式）
-    matlab = matlab.engine.start_matlab()
+    matlab = matlab_engine.start_matlab()
     mat_data = matlab.load(result_file)
     matlab.quit()
 
@@ -113,51 +113,64 @@ def run_matlab_simulation(gcode_file, layer_num, checkpoint_path, output_dir):
 
 def convert_matlab_results(mat_data):
     """将MATLAB结果转换为Python字典"""
+    # MATLAB引擎返回的是嵌套字典结构
+    results_dict = mat_data['results']
+
     results = {}
 
+    # 辅助函数：将MATLAB数据转换为numpy数组
+    def to_numpy(data):
+        """将matlab.double或其他类型转换为numpy数组"""
+        if isinstance(data, np.ndarray):
+            return data.flatten()
+        elif hasattr(data, '_data'):  # matlab.double等类型
+            return np.array(data._data).flatten()
+        else:
+            return np.array(data).flatten()
+
     # 时间
-    results['time'] = np.array(mat_data['time'][0]).flatten()
+    results['time'] = to_numpy(results_dict['time'])
 
     # 参考轨迹
-    traj = mat_data['trajectory'][0]
-    results['x_ref'] = np.array(traj['x_ref'][0]).flatten()
-    results['y_ref'] = np.array(traj['y_ref'][0]).flatten()
-    results['z_ref'] = np.array(traj['z_ref'][0]).flatten()
-    results['vx'] = np.array(traj['vx'][0]).flatten()
-    results['vy'] = np.array(traj['vy'][0]).flatten()
+    traj = results_dict['trajectory']
+    results['x_ref'] = to_numpy(traj['x_ref'])
+    results['y_ref'] = to_numpy(traj['y_ref'])
+    results['z_ref'] = to_numpy(traj['z_ref'])
+    results['vx'] = to_numpy(traj['vx'])
+    results['vy'] = to_numpy(traj['vy'])
 
     # 修正后轨迹
-    traj_corr = mat_data['trajectory_corrected'][0]
-    results['x_corrected'] = np.array(traj_corr['x'][0]).flatten()
-    results['y_corrected'] = np.array(traj_corr['y'][0]).flatten()
+    traj_corr = results_dict['trajectory_corrected']
+    results['x_corrected'] = to_numpy(traj_corr['x'])
+    results['y_corrected'] = to_numpy(traj_corr['y'])
 
     # 实际轨迹
-    traj_act = mat_data['trajectory_actual'][0]
-    results['x_actual'] = np.array(traj_act['x'][0]).flatten()
-    results['y_actual'] = np.array(traj_act['y'][0]).flatten()
+    traj_act = results_dict['trajectory_actual']
+    results['x_actual'] = to_numpy(traj_act['x'])
+    results['y_actual'] = to_numpy(traj_act['y'])
 
     # 未修正误差
-    err_uncorr = mat_data['error_uncorrected'][0]
-    results['error_x_uncorrected'] = np.array(err_uncorr['x'][0]).flatten()
-    results['error_y_uncorrected'] = np.array(err_uncorr['y'][0]).flatten()
-    results['error_mag_uncorrected'] = np.array(err_uncorr['mag'][0]).flatten()
+    err_uncorr = results_dict['error_uncorrected']
+    results['error_x_uncorrected'] = to_numpy(err_uncorr['x'])
+    results['error_y_uncorrected'] = to_numpy(err_uncorr['y'])
+    results['error_mag_uncorrected'] = to_numpy(err_uncorr['mag'])
 
     # 修正后误差
-    err_corr = mat_data['error_corrected'][0]
-    results['error_x_corrected'] = np.array(err_corr['x'][0]).flatten()
-    results['error_y_corrected'] = np.array(err_corr['y'][0]).flatten()
-    results['error_mag_corrected'] = np.array(err_corr['mag'][0]).flatten()
+    err_corr = results_dict['error_corrected']
+    results['error_x_corrected'] = to_numpy(err_corr['x'])
+    results['error_y_corrected'] = to_numpy(err_corr['y'])
+    results['error_mag_corrected'] = to_numpy(err_corr['mag'])
 
     # 预测误差
-    pred_err = mat_data['predicted_error'][0]
-    results['pred_error_x'] = np.array(pred_err['x'][0]).flatten()
-    results['pred_error_y'] = np.array(pred_err['y'][0]).flatten()
+    pred_err = results_dict['predicted_error']
+    results['pred_error_x'] = to_numpy(pred_err['x'])
+    results['pred_error_y'] = to_numpy(pred_err['y'])
 
     # 性能统计
-    perf = mat_data['performance'][0]
-    results['mean_inference_time_ms'] = float(perf['mean_inference_time_ms'][0])
-    results['max_inference_time_ms'] = float(perf['max_inference_time_ms'][0])
-    results['throughput_pred_per_sec'] = float(perf['throughput_pred_per_sec'][0])
+    perf = results_dict['performance']
+    results['mean_inference_time_ms'] = float(perf['mean_inference_time_ms'])
+    results['max_inference_time_ms'] = float(perf['max_inference_time_ms'])
+    results['throughput_pred_per_sec'] = float(perf['throughput_pred_per_sec'])
 
     return results
 
