@@ -35,29 +35,9 @@
 | Junction deviation | 0.013 | mm |
 | Microstepping | 16 | - |
 
-### Thermal Configuration
-
-| Parameter | Value | Unit |
-|-----------|-------|------|
-| Nozzle temperature | 220 | °C (PLA) |
-| Bed temperature | 60 | °C (PLA) |
-| Part cooling fan | 0-255 | PWM |
-| Ambient temperature | 25 | °C (room temp) |
-
 ---
 
 ## Material: PLA
-
-### Thermal Properties
-
-| Parameter | Value | Unit | Source |
-|-----------|-------|------|--------|
-| Density | 1240 | kg/m³ | Datasheet |
-| Specific heat | 1200 | J/(kg·K) | Datasheet |
-| Thermal conductivity | 0.13 | W/(m·K) | Datasheet |
-| Thermal diffusivity | 8.7×10⁻⁸ | m²/s | Calculated |
-| Glass transition | 60 | °C | Standard |
-| Melting point | 171 | °C | Standard |
 
 ### Mechanical Properties
 
@@ -136,9 +116,9 @@ collect_3dbenchy('sampled:5');  % 10 layers from 48
 #### Strategy 2: Representative Layers
 
 Select specific layers representing different regions:
-- Layer 1: First layer (bed adhesion)
+- Layer 1: First layer (different dynamics, lower speeds)
 - Layer 25: Middle layer (typical conditions)
-- Layer 48: Last layer (minimal support)
+- Layer 48: Last layer (minimal support, higher vibration)
 
 ### Data Collection Commands
 
@@ -220,8 +200,6 @@ check_error_ranges(simulation_data)
 **Expected ranges**:
 - Mean error: 0.08-0.15 mm (80-150 μm)
 - Max error: < 0.5 mm
-- Temperature: 20-220 °C
-- Adhesion ratio: 0-1
 
 ### Statistical Validation
 
