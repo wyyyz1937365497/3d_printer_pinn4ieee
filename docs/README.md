@@ -28,8 +28,6 @@
 - **[Formulas Library](theory/formulas.md)** ⭐ - All equations, symbols, and LaTeX code
 - [Overview](theory/overview.md) - Research background and theoretical framework
 - [Trajectory Dynamics](theory/trajectory_dynamics.md) - Second-order system modeling
-- [Thermal Model](theory/thermal_model.md) - Heat transfer and temperature field
-- [Adhesion Model](theory/adhesion_model.md) - Layer bonding strength prediction
 
 **Purpose**: Understand the physics behind FDM printing errors and the mathematical models used in simulation.
 
@@ -132,14 +130,14 @@ python trajectory_plots.py --test  # Generate test plots
 
 ## Document Statistics
 
-- **Theory**: 5 documents (including formulas)
+- **Theory**: 3 documents (overview, dynamics, formulas)
 - **Methods**: 5 documents
 - **Experiments**: 4 documents
 - **Results**: 4 documents
 - **Figures**: 3 template scripts + examples
 - **Writing**: Complete template system (structure, sections, LaTeX, phrases)
-- **Archives**: Quick reference, Chinese notes, old docs
-- **Total**: 25+ core documents
+- **Archives**: Quick reference, Chinese notes, old docs (including archived thermal/adhesion models)
+- **Total**: 20+ core documents
 
 ---
 
@@ -194,7 +192,7 @@ python trajectory_plots.py --test  # Generate test plots
 ### Finding Specific Information
 
 **For equations**: Start in [theory/formulas.md](theory/formulas.md)
-- Search for "dynamics", "thermal", "adhesion"
+- Search for "dynamics", "firmware", "LSTM"
 - Use equation anchors: {#eq:second-order}
 
 **For implementation**: Check methods/ directory
