@@ -1,6 +1,6 @@
 # Training Pipeline
 
-**Purpose**: End-to-end workflow for training trajectory error prediction models.
+**Purpose**: End-to-end workflow for training LSTM-based trajectory error prediction models.
 
 ---
 
@@ -10,7 +10,7 @@ The training pipeline consists of five stages:
 
 1. **Data collection** - MATLAB simulation
 2. **Data preparation** - Convert to PyTorch format
-3. **Model training** - Train neural network
+3. **Model training** - Train LSTM network
 4. **Model evaluation** - Test performance
 5. **Model deployment** - Export for inference
 
@@ -41,8 +41,6 @@ test_firmware_effects_simple
 
 % Expected output:
 %   RMS error: ~140 μm ✅
-%   Temperature range: 45-85 °C ✅
-%   Adhesion ratio: 0.75-0.90 ✅
 ```
 
 ---
@@ -55,7 +53,7 @@ test_firmware_effects_simple
 python data/scripts/prepare_training_data.py \
     --data_dirs data_simulation_* \
     --output_dir data/processed \
-    --sequence_length 128 \
+    --sequence_length 20 \
     --stride 4 \
     --train_ratio 0.8 \
     --val_ratio 0.1 \
@@ -83,12 +81,14 @@ Each `.pt` file contains:
 
 ```python
 {
-    'input_features': torch.Tensor,  # [sequence_length, 15]
-    'trajectory_targets': torch.Tensor,  # [sequence_length, 2]
-    'thermal_targets': torch.Tensor,     # [sequence_length, 3]
+    'input_features': torch.Tensor,  # [sequence_length, 4]
+    'targets': torch.Tensor,         # [2]  # [error_x, error_y]
     'metadata': dict  # layer, model, params
 }
 ```
+
+**Features**: [x_ref, y_ref, vx_ref, vy_ref]
+**Targets**: [error_x, error_y]
 
 ### Data Statistics
 
@@ -96,19 +96,19 @@ Check generated data:
 
 ```bash
 python -c "
-from data.simulation.dataset import PrinterSimulationDataset
-dataset = PrinterSimulationDataset('data/processed/train')
+from data.realtime_dataset import RealTimeDataset
+dataset = RealTimeDataset('data/processed/train')
 print(f'Total samples: {len(dataset)}')
-print(f'Feature shape: {dataset[0][\"input_features\"].shape}')
-print(f'Target shape: {dataset[0][\"trajectory_targets\"].shape}')
+print(f'Feature shape: {dataset[0][\"features\"].shape}')
+print(f'Target shape: {dataset[0][\"target\"].shape}')
 "
 ```
 
 **Expected output**:
 ```
-Total samples: ~50,000
-Feature shape: torch.Size([128, 15])
-Target shape: torch.Size([128, 2])
+Total samples: ~40,000
+Feature shape: torch.Size([20, 4])
+Target shape: torch.Size([2])
 ```
 
 ---
@@ -118,31 +118,31 @@ Target shape: torch.Size([128, 2])
 ### Basic Training Command
 
 ```bash
-python experiments/train_trajectory_model.py \
+python experiments/train_realtime.py \
     --data_root data/processed \
-    --batch_size 32 \
+    --batch_size 256 \
     --epochs 100 \
-    --lr 1e-4 \
+    --lr 1e-3 \
     --device cuda:0 \
-    --experiment_name trajectory_correction_v1
+    --experiment_name realtime_v1
 ```
 
 ### Full Training Command
 
 ```bash
-python experiments/train_trajectory_model.py \
+python experiments/train_realtime.py \
     --data_root data/processed \
-    --batch_size 32 \
+    --batch_size 256 \
     --epochs 100 \
-    --lr 1e-4 \
+    --lr 1e-3 \
+    --weight_decay 1e-4 \
     --device cuda:0 \
-    --experiment_name firmware_enhanced_v1 \
-    --log_dir logs/firmware_v1 \
-    --save_dir checkpoints/firmware_v1 \
+    --experiment_name realtime_production \
+    --log_dir logs/realtime_v1 \
+    --save_dir checkpoints/realtime_v1 \
     --mixed_precision \
-    --gradient_clip 1.0 \
-    --early_stopping_patience 15 \
-    --lambda_physics 0.1
+    --accumulation_steps 2 \
+    --early_stopping_patience 15
 ```
 
 ### Monitor Training
@@ -152,26 +152,26 @@ python experiments/train_trajectory_model.py \
 ```
 Epoch 1/100
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100%
-    Batch  20/156 | Loss: 0.023456 | X-Err: 0.012345 | Y-Err: 0.011234
-    Batch  40/156 | Loss: 0.021234 | X-Err: 0.011234 | Y-Err: 0.010123
+    Batch  20/156 | Loss: 0.023456 | MAE: 0.012345
+    Batch  40/156 | Loss: 0.021234 | MAE: 0.011234
     ...
-  ▶ Train Loss: 0.019876 | X-Err: 0.010234 | Y-Err: 0.009876
-  ▶ Val Loss: 0.018765 | X-Err: 0.009876 | Y-Err: 0.009234
-  ✓ Saved checkpoint: checkpoints/firmware_v1/best_model.pt
+  ▶ Train Loss: 0.019876 | MAE: 0.010234
+  ▶ Val Loss: 0.018765 | MAE: 0.009876
+  ✓ Saved checkpoint: checkpoints/realtime_v1/best_model.pth
 ```
 
 #### TensorBoard
 
 ```bash
-tensorboard --logdir logs/firmware_v1 --port 6006
+tensorboard --logdir logs/realtime_v1 --port 6006
 # Open http://localhost:6006
 ```
 
 **Monitored metrics**:
-- Training/validation loss curves
-- X/Y axis error over time
+- Training/validation loss curves (MAE)
 - Learning rate schedule
 - Gradient distribution
+- Inference time
 
 ---
 
@@ -180,16 +180,16 @@ tensorboard --logdir logs/firmware_v1 --port 6006
 ### Basic Evaluation
 
 ```bash
-python experiments/evaluate_trajectory_model.py \
-    --checkpoint checkpoints/firmware_v1/best_model.pt \
+python experiments/evaluate_realtime.py \
+    --checkpoint checkpoints/realtime_v1/best_model.pth \
     --data_root data/processed/test
 ```
 
 ### Comprehensive Evaluation
 
 ```bash
-python experiments/evaluate_trajectory_model.py \
-    --checkpoint checkpoints/firmware_v1/best_model.pt \
+python experiments/evaluate_realtime.py \
+    --checkpoint checkpoints/realtime_v1/best_model.pth \
     --data_root data/processed/test \
     --output_dir results/evaluation \
     --visualize \
@@ -202,7 +202,7 @@ python experiments/evaluate_trajectory_model.py \
 **Console output**:
 ```
 ===========================================
-Trajectory Error Model Evaluation
+Real-Time Trajectory Error Model Evaluation
 ===========================================
 Dataset: Test (5234 samples)
 
@@ -228,7 +228,12 @@ Percentile Errors:
   95th:         0.0456 mm
   99th:         0.0678 mm
 
-✓ Model meets performance targets!
+Inference Performance:
+  Avg time: 0.32 ms
+  Throughput: 3,125 inf/s
+  ✓ Meets real-time requirement (< 1ms)
+
+✓ Model meets all performance targets!
 ===========================================
 ```
 
@@ -239,8 +244,7 @@ results/evaluation/
 ├── trajectory_comparison.png
 ├── error_distribution.png
 ├── error_correlation.png
-├── per_axis_error.png
-└── sequence_prediction.png
+└── per_axis_error.png
 ```
 
 ---
@@ -250,30 +254,34 @@ results/evaluation/
 ### Export for Inference
 
 ```python
-from models.trajectory import TrajectoryErrorTransformer
+from models.realtime_corrector import RealTimeCorrector
 import torch
 
 # Load best model
-model = TrajectoryErrorTransformer.load_from_checkpoint(
-    'checkpoints/firmware_v1/best_model.pt'
+model = RealTimeCorrector(
+    input_size=4,
+    hidden_size=56,
+    num_layers=2,
+    dropout=0.1
 )
+checkpoint = torch.load('checkpoints/realtime_v1/best_model.pth')
+model.load_state_dict(checkpoint['model_state_dict'])
 model.eval()
 
 # TorchScript compilation for deployment
 scripted_model = torch.jit.script(model)
-scripted_model.save('models/trajectory_error_model.pt')
+scripted_model.save('models/realtime_corrector.pt')
 
 # Or ONNX export
 torch.onnx.export(
     model,
     dummy_input,
-    'models/trajectory_error_model.onnx',
+    'models/realtime_corrector.onnx',
     input_names=['input_features'],
-    output_names=['error_x', 'error_y'],
+    output_names=['error_predictions'],
     dynamic_axes={
         'input_features': {0: 'batch_size'},
-        'error_x': {0: 'batch_size'},
-        'error_y': {0: 'batch_size'}
+        'error_predictions': {0: 'batch_size'}
     }
 )
 ```
@@ -282,29 +290,46 @@ torch.onnx.export(
 
 ```python
 import torch
+import numpy as np
+from collections import deque
 
 # Load compiled model
-model = torch.jit.load('models/trajectory_error_model.pt')
+model = torch.jit.load('models/realtime_corrector.pt')
 model.eval()
 
-# Prepare input (single sample)
-input_features = prepare_trajectory_features(gcode_line)
-input_tensor = torch.from_numpy(input_features).unsqueeze(0).float()
+# Streaming inference
+class StreamingPredictor:
+    def __init__(self, model, seq_len=20):
+        self.model = model
+        self.seq_len = seq_len
+        self.history = deque(maxlen=seq_len)
 
-# Predict
-with torch.no_grad():
-    start_time = time.time()
-    predictions = model(input_tensor)
-    inference_time = (time.time() - start_time) * 1000  # ms
+    def predict(self, x_ref, y_ref, vx_ref, vy_ref):
+        # Update history
+        self.history.append([x_ref, y_ref, vx_ref, vy_ref])
 
-# Extract errors
-error_x = predictions['error_x'][0].numpy()  # [sequence_length]
-error_y = predictions['error_y'][0].numpy()
+        if len(self.history) < self.seq_len:
+            return 0.0, 0.0  # Not enough history
 
-# Apply correction
-corrected_gcode = apply_correction(original_gcode, error_x, error_y)
+        # Prepare input
+        sequence = np.array(self.history)
+        sequence = (sequence - mean) / std  # Normalize
+        input_tensor = torch.FloatTensor(sequence).unsqueeze(0)
 
-print(f"Inference time: {inference_time:.2f} ms")
+        # Predict
+        with torch.no_grad():
+            start = time.time()
+            prediction = self.model(input_tensor)
+            inference_time = (time.time() - start) * 1000
+
+        error_x, error_y = prediction[0].cpu().numpy()
+
+        return error_x, error_y, inference_time
+
+# Usage
+predictor = StreamingPredictor(model)
+error_x, error_y, t = predictor.predict(100.0, 50.0, 25.0, 10.0)
+print(f"Error: ({error_x:.4f}, {error_y:.4f}) mm, Time: {t:.3f} ms")
 ```
 
 ---
@@ -315,37 +340,25 @@ print(f"Inference time: {inference_time:.2f} ms")
 
 ```bash
 # Test different learning rates
-for lr in 1e-5 1e-4 1e-3; do
-    python train_trajectory_model.py --lr $lr --exp_name lr_${lr}
+for lr in 1e-4 1e-3 1e-2; do
+    python train_realtime.py --lr $lr --exp_name lr_${lr}
 done
 
-# Test different batch sizes
-for bs in 16 32 64; do
-    python train_trajectory_model.py --batch_size $bs --exp_name bs_${bs}
+# Test different hidden sizes
+for hs in 32 56 128; do
+    python train_realtime.py --hidden_size $hs --exp_name hs_${hs}
 done
 ```
 
-### Bayesian Optimization
+### Key Hyperparameters
 
-```python
-import optuna
-
-def objective(trial):
-    # Suggest hyperparameters
-    lr = trial.suggest_loguniform('lr', 1e-5, 1e-3)
-    batch_size = trial.suggest_categorical('batch_size', [16, 32, 64])
-    dropout = trial.suggest_uniform('dropout', 0.0, 0.3)
-
-    # Train model
-    metrics = train_model(lr, batch_size, dropout)
-
-    return metrics['val_loss']
-
-study = optuna.create_study(direction='minimize')
-study.optimize(objective, n_trials=50)
-
-print(f'Best trial: {study.best_trial.params}')
-```
+| Parameter | Search Space | Best Value |
+|-----------|--------------|------------|
+| learning_rate | [1e-4, 1e-3, 1e-2] | 1e-3 |
+| hidden_size | [32, 56, 128] | 56 |
+| num_layers | [1, 2, 3] | 2 |
+| dropout | [0.0, 0.1, 0.2] | 0.1 |
+| batch_size | [128, 256, 512] | 256 |
 
 ---
 
@@ -356,10 +369,10 @@ print(f'Best trial: {study.best_trial.params}')
 **Solution**:
 ```bash
 # Reduce batch size
---batch_size 16  # or 8
+--batch_size 128  # or 64
 
-# Or reduce sequence length
-# In prepare_training_data.py: --sequence_length 64
+# Or reduce model size
+--hidden_size 32
 ```
 
 ### Issue 2: Model Not Converging
@@ -367,13 +380,13 @@ print(f'Best trial: {study.best_trial.params}')
 **Solution**:
 ```bash
 # Lower learning rate
---lr 5e-5  # or 1e-5
+--lr 5e-4
 
-# Enable learning rate finder
---lr_find
+# Check data quality
+python -c "check_data_quality('data/processed/train')"
 
-# Increase model capacity
---d_model 512  # or --num_layers 8
+# Increase training time
+--epochs 200
 ```
 
 ### Issue 3: Overfitting
@@ -381,27 +394,27 @@ print(f'Best trial: {study.best_trial.params}')
 **Solution**:
 ```bash
 # Increase dropout
---dropout 0.2  # or 0.3
+--dropout 0.2
 
 # Add data augmentation
 --augment_noise --noise_level 0.01
 
-# Add weight decay
+# Increase weight decay
 --weight_decay 1e-3
 ```
 
-### Issue 4: Underfitting
+### Issue 4: Inference Too Slow
 
 **Solution**:
 ```bash
-# Increase model size
---d_model 512 --num_layers 8
+# Use TorchScript compilation
+python export_model.py --format torchscript
 
-# Train longer
---epochs 200
+# Reduce model size
+--hidden_size 32 --num_layers 1
 
-# Reduce regularization
---dropout 0.05 --weight_decay 1e-5
+# Profile inference
+python profile_inference.py --checkpoint best_model.pth
 ```
 
 ---
@@ -409,12 +422,12 @@ print(f'Best trial: {study.best_trial.params}')
 ## Training Time Estimates
 
 | Hardware | Batch Size | Per Epoch | Total (100 epochs) |
-|----------|-----------|-----------|-------------------|
-| CPU (i7-8700K) | 16 | ~15 min | ~25 hours |
-| GPU (GTX 1080) | 32 | ~3 min | ~5 hours |
-| GPU (RTX 3080) | 64 | ~1 min | ~2 hours |
+|----------|-----------|-----------|---------------------|
+| CPU (i7-8700K) | 64 | ~10 min | ~17 hours |
+| GPU (GTX 1080) | 256 | ~2 min | ~3 hours |
+| GPU (RTX 3080) | 256 | ~1 min | ~2 hours |
 
-**Note**: Actual time depends on dataset size and sequence length.
+**Note**: Actual time depends on dataset size (~40K samples).
 
 ---
 
@@ -432,22 +445,23 @@ matlab -batch "collect_all"
 echo "=== Stage 2: Data Preparation ==="
 python data/scripts/prepare_training_data.py \
     --data_dirs data_simulation_* \
-    --output_dir data/processed
+    --output_dir data/processed \
+    --sequence_length 20
 
 # Stage 3: Train model
 echo "=== Stage 3: Model Training ==="
-python experiments/train_trajectory_model.py \
+python experiments/train_realtime.py \
     --data_root data/processed \
     --epochs 100 \
-    --batch_size 32 \
-    --lr 1e-4 \
+    --batch_size 256 \
+    --lr 1e-3 \
     --mixed_precision \
     --experiment_name production_model
 
 # Stage 4: Evaluate model
 echo "=== Stage 4: Model Evaluation ==="
-python experiments/evaluate_trajectory_model.py \
-    --checkpoint checkpoints/production_model/best_model.pt \
+python experiments/evaluate_realtime.py \
+    --checkpoint checkpoints/production_model/best_model.pth \
     --data_root data/processed/test \
     --visualize \
     --save_predictions
@@ -455,7 +469,7 @@ python experiments/evaluate_trajectory_model.py \
 # Stage 5: Export model
 echo "=== Stage 5: Model Export ==="
 python experiments/export_model.py \
-    --checkpoint checkpoints/production_model/best_model.pt \
+    --checkpoint checkpoints/production_model/best_model.pth \
     --output_dir models/ \
     --format torchscript
 
@@ -464,13 +478,43 @@ echo "=== Pipeline Complete ==="
 
 ---
 
+## Training Best Practices
+
+### Data Preparation
+
+1. **Normalize features**: Use mean/std from training set
+2. **Shuffle data**: Random order each epoch
+3. **Balance layers**: Equal representation from all models
+4. **Validate split**: Ensure no data leakage
+
+### Training Configuration
+
+1. **Use mixed precision**: Faster training, lower memory
+2. **Gradient accumulation**: Simulate larger batch sizes
+3. **Learning rate scheduling**: Cosine annealing with warm restarts
+4. **Early stopping**: Prevent overfitting
+
+### Monitoring
+
+1. **Track multiple metrics**: MAE, RMSE, R²
+2. **Monitor overfitting**: Train vs val loss gap
+3. **Check inference time**: Must be < 1ms
+4. **Visualize predictions**: Spot-check quality
+
+---
+
 ## References
 
 **See Also**:
-- [Neural Network](neural_network.md) - Model architecture
-- [Data Generation](data_generation.md) - Data collection
+- [Neural Network](neural_network.md) - LSTM model architecture
+- [Data Generation](data_generation.md) - Data collection strategy
 - [Experiments/Metrics](../experiments/metrics.md) - Evaluation metrics
+- [Simulation System](simulation_system.md) - Physics simulation
 
 **Related Documents**:
 - [Previous]: [Neural Network](neural_network.md)
-- [See Also]: [Experiments/Setup](../experiments/setup.md)
+- [Next]: [Experiments/Setup](../experiments/setup.md)
+
+---
+
+**Last Updated**: 2026-02-02

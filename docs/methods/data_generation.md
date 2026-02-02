@@ -1,12 +1,12 @@
 # Data Generation Strategy
 
-**Purpose**: Strategy for generating high-quality training data using firmware-enhanced simulation.
+**Purpose**: Strategy for generating high-quality training data for trajectory error prediction.
 
 ---
 
 ## Overview
 
-The goal is to generate **large-scale, high-fidelity, fully-annotated** training data for trajectory error prediction networks. This document describes the optimized data generation strategy.
+The goal is to generate **large-scale, high-fidelity** training data for LSTM-based trajectory error prediction. This document describes the optimized data generation strategy.
 
 ---
 
@@ -45,7 +45,7 @@ collect_bearing5('sampled:5');
 ### Strategy 2: Representative Layers
 
 Select layers representing different regions:
-- Layer 1: First layer (bed adhesion)
+- Layer 1: First layer (bed adhesion, different dynamics)
 - Layer 25: Middle layer (typical)
 - Layer 48: Last layer (minimal support)
 
@@ -76,45 +76,33 @@ collect_3dbenchy('all');
 | Max velocity | 500 | mm/s | Firmware |
 | Max acceleration | 500 | mm/s² | Firmware |
 | Jerk limit | 8-10 | mm/s³ | Firmware |
-| Nozzle temp | 220 | °C | PLA |
-| Bed temp | 60 | °C | PLA |
 | Layer height | 0.2 | mm | Slicer |
 
 ### Parameter Sweep Strategy
 
-For sampled layers, vary parameters to increase diversity:
+For sampled layers, vary motion parameters to increase diversity:
 
 | Parameter | Values | Count |
 |-----------|--------|-------|
 | Acceleration | 200, 300, 400, 500 | 4 |
 | Velocity | 100, 200, 300, 400 | 4 |
-| Fan speed | 0, 128, 255 | 3 |
-| Ambient temp | 20, 25, 30 | 3 |
 
-**Total combinations**: 4 × 4 × 3 × 3 = 144
+**Total combinations**: 4 × 4 = 16
 
 **Implementation**:
 ```matlab
 % Create parameter grid
 accels = [200, 300, 400, 500];
 velocities = [100, 200, 300, 400];
-fans = [0, 128, 255];
-temps = [20, 25, 30];
 
 % Loop over all combinations
 for a = accels
     for v = velocities
-        for f = fans
-            for t = temps
-                params = physics_parameters();
-                params.motion.max_accel = a;
-                params.motion.max_velocity = v;
-                params.heat_transfer.fan_speed = f;
-                params.environment.ambient_temp = t;
+        params = physics_parameters();
+        params.motion.max_accel = a;
+        params.motion.max_velocity = v;
 
-                run_simulation('model.gcode', params);
-            end
-        end
+        run_simulation('model.gcode', params);
     end
 end
 ```
@@ -170,8 +158,8 @@ end
 Shift the sequence window:
 
 ```python
-# Original: [t0, t1, ..., t127]
-# Shifted: [t5, t6, ..., t132]
+# Original: [t0, t1, ..., t19]
+# Shifted: [t5, t6, ..., t24]
 # Multiple shifts from same layer
 ```
 
@@ -211,11 +199,6 @@ simulation_data
 │   ├── error_x, error_y
 │   ├── error_mag
 │   └── error_direction
-├── thermal                 % Temperature field
-│   ├── T_nozzle
-│   ├── T_interface
-│   ├── T_surface
-│   └── cooling_rate
 ├── firmware_effects        % Firmware-specific errors
 │   ├── junction_deviation_x, y
 │   ├── resonance_x, y
@@ -231,10 +214,25 @@ simulation_data
 import h5py
 
 with h5py.File('trajectory_data.h5', 'w') as f:
-    f.create_dataset('features', data=X)  # [N, sequence_length, n_features]
-    f.create_dataset('targets', data=y)    # [N, sequence_length, 2]
+    f.create_dataset('features', data=X)  # [N, 20, 4]
+                                            % Sequence length 20, 4 features
+    f.create_dataset('targets', data=y)    # [N, 2]
+                                            % error_x, error_y
     f.create_dataset('params', data=params)  # Simulation parameters
     f.create_dataset('metadata', data=metadata)  # Layer, model, etc.
+```
+
+**Feature extraction**:
+```python
+# Input features: [x_ref, y_ref, vx_ref, vy_ref]
+X = np.stack([trajectory.x_ref,
+              trajectory.y_ref,
+              trajectory.vx,
+              trajectory.vy], axis=1)
+
+# Target: [error_x, error_y]
+y = np.stack([error.error_x,
+              error.error_y], axis=1)
 ```
 
 ---
@@ -249,8 +247,6 @@ def check_data_quality(data):
     checks = {
         'error_magnitude': (0.05, 0.3),  # Mean error should be 50-300 μm
         'error_max': (0, 0.5),            # Max error < 0.5 mm
-        'temperature': (20, 220),         # Within ambient to nozzle
-        'adhesion': (0, 1),               # Strength ratio [0, 1]
     }
 
     for key, (min_val, max_val) in checks.items():
@@ -272,14 +268,6 @@ Error Statistics:
   X: mean=0.089 mm, std=0.112 mm
   Y: mean=0.091 mm, std=0.108 mm
   Mag: mean=0.127 mm, std=0.095 mm
-
-Temperature:
-  Nozzle: 220.0 °C (constant)
-  Interface: 68.3 ± 5.2 °C
-  Surface: 45.1 ± 3.8 °C
-
-Adhesion:
-  Strength ratio: 0.82 ± 0.11
 
 ✓ All statistics within expected range
 ```
@@ -382,16 +370,42 @@ Typical layer from 3DBenchy (Layer 25):
 | Duration | ~2 minutes | Simulation time |
 | Sample points | ~2000-3000 | Δt = 0.01s |
 | Error (RMS) | 0.12-0.15 mm | Firmware-enhanced |
-| Temperature range | 45-85 °C | Interface |
-| Adhesion ratio | 0.75-0.90 | Layer bonding |
+| Error (max) | 0.35-0.50 mm | Corner errors |
 
 ### Dataset Size Estimation
 
 | Plan | Layers | Points/Layer | Total Points | File Size |
 |------|--------|--------------|--------------|-----------|
-| Quick validation | 15 | 2500 | 37,500 | ~50 MB |
-| Standard training | 40 | 2500 | 100,000 | ~130 MB |
-| Complete dataset | 200 | 2500 | 500,000 | ~650 MB |
+| Quick validation | 15 | 2500 | 37,500 | ~30 MB |
+| Standard training | 40 | 2500 | 100,000 | ~80 MB |
+| Complete dataset | 200 | 2500 | 500,000 | ~400 MB |
+
+---
+
+## Key Design Decisions
+
+### Why Vary Acceleration and Velocity?
+
+Trajectory errors are highly sensitive to motion parameters:
+- **Higher acceleration** → larger inertial forces → larger errors
+- **Higher velocity** → larger corner rounding → different error patterns
+
+Sweeping these parameters ensures the network sees diverse error conditions.
+
+### Why Sampled Layers?
+
+Printing errors vary by layer height and geometry:
+- Lower layers: More support, bed adhesion effects
+- Middle layers: Typical behavior
+- Upper layers: Less support, more vibration
+
+Sampling captures this diversity without simulating every layer.
+
+### Why 100 Hz Sampling?
+
+- Adequate for capturing 88 Hz resonant frequency
+- Keeps dataset size manageable
+- Matches LSTM sequence length (20 steps = 0.2s)
 
 ---
 
@@ -401,7 +415,12 @@ Typical layer from 3DBenchy (Layer 25):
 - [Simulation System](simulation_system.md) - How simulation works
 - [Firmware Effects](firmware_effects.md) - Error source details
 - [Experiments/Datasets](../experiments/datasets.md) - Dataset documentation
+- [Neural Network](neural_network.md) - LSTM architecture
 
 **Related Documents**:
 - [Previous]: [Firmware Effects](firmware_effects.md)
 - [Next]: [Neural Network](neural_network.md)
+
+---
+
+**Last Updated**: 2026-02-02
