@@ -39,7 +39,8 @@
       "Bash(G:/Miniconda3/envs/3dprint/python.exe:*)",
       "Bash(xargs:*)",
       "Bash(/f/Miniconda3/envs/3dprint/python.exe:*)",
-      "Bash(where:*)"
+      "Bash(where:*)",
+      "Bash(git reset:*)"
     ]
   }
 }

@@ -48,7 +48,7 @@ logs/*
 
 # Checkpoints
 !checkpoints/.gitkeep
-
+*.zip
 # Outputs
 outputs/
 
