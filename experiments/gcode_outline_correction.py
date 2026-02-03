@@ -155,7 +155,8 @@ class OutlineOnlyCorrector:
             moves: 所有移动指令列表
 
         Returns:
-            corrected_positions: {line_number: (x_corrected, y_corrected)}
+            corrected_positions: {line_number: (correction_x, correction_y)}
+                          修正量而非绝对坐标
         """
         print(f"\n应用模型修正（仅轮廓）...")
 
@@ -201,25 +202,26 @@ class OutlineOnlyCorrector:
                 input_tensor = torch.FloatTensor(history).unsqueeze(0).to(self.device)
                 pred_error = self.model(input_tensor).cpu().numpy()[0]
 
-                # 修正公式
-                x_corrected = x_ref[i] + pred_error[0]
-                y_corrected = y_ref[i] + pred_error[1]
+                # 调试：打印前5个预测
+                if i < self.seq_len + 5:
+                    print(f"  预测 #{i}:")
+                    print(f"    原始坐标: ({x_ref[i]:.4f}, {y_ref[i]:.4f}) mm")
+                    print(f"    预测误差: ({pred_error[0]:.6f}, {pred_error[1]:.6f})")
+                    print(f"    预测误差(um): ({pred_error[0]*1000:.2f}, {pred_error[1]*1000:.2f})")
 
-                # 记录修正后的位置（使用原始行号）
+                # 记录修正量（而非绝对坐标）
                 line_number = outline_moves[i]['line_number']
-                corrected_positions[line_number] = (x_corrected, y_corrected)
+                corrected_positions[line_number] = (pred_error[0], pred_error[1])
 
         print(f"  [OK] 修正了 {len(corrected_positions)} 个轮廓点")
 
         # 统计修正量
         corrections = []
-        for i, line_num in enumerate(corrected_positions.keys()):
-            if i < len(outline_moves) - self.seq_len:
-                orig_x = outline_moves[i + self.seq_len].get('x', 0)
-                orig_y = outline_moves[i + self.seq_len].get('y', 0)
-                corr_x, corr_y = corrected_positions[line_num]
-                correction_mag = np.sqrt((corr_x - orig_x)**2 + (corr_y - orig_y)**2)
-                corrections.append(correction_mag)
+        for line_num in corrected_positions.keys():
+            corr_x, corr_y = corrected_positions[line_num]
+            # 修正量是误差向量的模
+            correction_mag = np.sqrt(corr_x**2 + corr_y**2)
+            corrections.append(correction_mag)
 
         if corrections:
             print(f"  修正量统计:")
@@ -253,18 +255,56 @@ def generate_corrected_gcode(input_gcode, corrected_positions, output_file):
 
         # 检查是否是需要修正的行
         if i in corrected_positions:
-            x_corrected, y_corrected = corrected_positions[i]
+            # 从原始行提取坐标
+            x_match = re.search(r'X(-?\d+\.?\d*)', line_stripped)
+            y_match = re.search(r'Y(-?\d+\.?\d*)', line_stripped)
 
-            # 修改X和Y坐标
+            orig_x = float(x_match.group(1)) if x_match else None
+            orig_y = float(y_match.group(1)) if y_match else None
+
+            # 获取修正量
+            correction_x, correction_y = corrected_positions[i]
+
+            # 应用修正：原始坐标 + 修正量
+            new_x = orig_x + correction_x if orig_x is not None else None
+            new_y = orig_y + correction_y if orig_y is not None else None
+
+            # 生成新行
             new_line = line_stripped
 
             # X坐标
-            if 'X' in new_line:
-                new_line = re.sub(r'X-?\\d+\\.?\\d*', f'X{x_corrected:.4f}', new_line)
+            if new_x is not None and 'X' in new_line:
+                # 保持原始精度，但确保至少有3位小数
+                x_str = x_match.group(1)
+                if '.' in x_str:
+                    decimals = len(x_str.split('.')[1])
+                    new_decimals = max(decimals, 3)  # 至少3位小数
+                else:
+                    new_decimals = 3
+
+                new_line = re.sub(r'X-?\d+\.?\d*', f'X{new_x:.{new_decimals}f}', new_line)
 
             # Y坐标
-            if 'Y' in new_line:
-                new_line = re.sub(r'Y-?\\d+\\.?\\d*', f'Y{y_corrected:.4f}', new_line)
+            if new_y is not None and 'Y' in new_line:
+                y_str = y_match.group(1)
+                if '.' in y_str:
+                    decimals = len(y_str.split('.')[1])
+                    new_decimals = max(decimals, 3)
+                else:
+                    new_decimals = 3
+
+                new_line = re.sub(r'Y-?\d+\.?\d*', f'Y{new_y:.{new_decimals}f}', new_line)
+
+            # 调试：打印前5个修正
+            if corrections_applied < 5:
+                print(f"\n  修正 #{corrections_applied + 1} (行 {i}):")
+                print(f"    原始行: {line_stripped}")
+                print(f"    修正行: {new_line}")
+                if orig_x is not None:
+                    print(f"    X: {orig_x} + {correction_x:.6f} = {new_x:.6f} (修正量: {correction_x*1000:.2f} um)")
+                if orig_y is not None:
+                    print(f"    Y: {orig_y} + {correction_y:.6f} = {new_y:.6f} (修正量: {correction_y*1000:.2f} um)")
+                print(f"    行是否改变: {line_stripped != new_line}")
 
             corrected_lines.append(new_line + '\n')
             corrections_applied += 1
