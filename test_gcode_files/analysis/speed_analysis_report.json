@@ -1,0 +1,29 @@
+{
+  "gcode_file": "test_gcode_files/Tremendous Hillar_PLA_10m22s.gcode",
+  "total_moves": 2164,
+  "print_moves": 691,
+  "travel_moves": 1472,
+  "all_moves": {
+    "min_mm_s": 10.0,
+    "max_mm_s": 120.0,
+    "mean_mm_s": 65.2279112754159,
+    "median_mm_s": 50.0,
+    "std_mm_s": 30.08590502064735
+  },
+  "print_moves_only": {
+    "min_mm_s": 25.0,
+    "max_mm_s": 50.0,
+    "mean_mm_s": 44.6671490593343,
+    "median_mm_s": 40.0,
+    "std_mm_s": 5.121313298752112
+  },
+  "travel_moves_only": {
+    "min_mm_s": 10.0,
+    "max_mm_s": 120.0,
+    "mean_mm_s": 74.90366847826088,
+    "median_mm_s": 60.0,
+    "std_mm_s": 32.02283092987379
+  },
+  "recommended_test_speed": 50.0,
+  "matlab_max_speed": 500.0
+}
