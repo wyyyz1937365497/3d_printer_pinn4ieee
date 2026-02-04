@@ -1,9 +1,0 @@
-{
-  "total_files": 740,
-  "success_count": 740,
-  "failed_count": 0,
-  "failed_files": [],
-  "output_dir": "data_simulation_closedloop",
-  "openloop_model": "checkpoints/realtime_corrector/best_model.pth",
-  "simulate_matlab": false
-}
