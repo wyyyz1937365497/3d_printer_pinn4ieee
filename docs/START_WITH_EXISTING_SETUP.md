@@ -3,6 +3,7 @@
 ## 您的当前配置
 
 - **Klipper**: 10.168.1.123:19255
+- **Windows PC**: 10.168.1.118 (数据收集服务运行在此机器)
 - **IP摄像头**: 10.168.1.129:8080
   - 快照URL: `http://10.168.1.129:8080/shot.jpg`
   - MJPEG流: `http://10.168.1.129:8080/video`
@@ -35,7 +36,8 @@ curl http://10.168.1.123:19255/printer/info
 ### 1.3 使用Python测试工具
 
 ```bash
-cd ~/3d_printer_pinn4ieee  # 或您的项目目录
+# 在Windows PC上
+cd F:\TJ\3d_print\3d_printer_pinn4ieee
 python experiments/test_existing_setup.py
 ```
 
@@ -62,7 +64,7 @@ gcode:
     {% if http_ok %}
         {action_call_http(
             method="POST",
-            url="http://10.168.1.129:5000/capture",
+            url="http://10.168.1.118:5000/capture",
             body={"layer": printer.gcode_move.position.z|int,
                    "filename": printer.print_stats.filename}
         )}
@@ -114,15 +116,10 @@ sudo systemctl restart klipper
 ## 第四步：安装Python依赖（5分钟）
 
 ```bash
-# 连接到Raspberry Pi
-ssh pi@10.168.1.123
+# 在Windows PC上，打开命令提示符或PowerShell
 
 # 进入项目目录
-cd ~/3d_printer_pinn4ieee
-
-# 创建虚拟环境（如果还没有）
-python3 -m venv venv
-source venv/bin/activate
+cd F:\TJ\3d_print\3d_printer_pinn4ieee
 
 # 安装依赖
 pip install -r requirements.txt
@@ -135,12 +132,13 @@ python -c "import cv2, requests, flask; print('依赖安装成功')"
 
 ## 第五步：启动数据收集服务（1分钟）
 
-### 5.1 在Raspberry Pi上运行
+### 5.1 在Windows PC上运行
 
 ```bash
-# 确保在项目目录和虚拟环境中
-cd ~/3d_printer_pinn4ieee
-source venv/bin/activate
+# 打开命令提示符或PowerShell
+
+# 进入项目目录
+cd F:\TJ\3d_print\3d_printer_pinn4ieee
 
 # 启动服务
 python experiments/auto_data_collector_existing.py \
@@ -151,20 +149,20 @@ python experiments/auto_data_collector_existing.py \
     --output data/collected_photos
 ```
 
-### 5.2 或者在后台运行
+### 5.2 或者在后台运行（Windows）
 
 ```bash
-# 使用nohup在后台运行
-nohup python experiments/auto_data_collector_existing.py \
-    --klipper-host 10.168.1.123 \
-    --klipper-port 19255 \
-    --camera-host 10.168.1.129 \
-    --camera-port 8080 \
-    --output data/collected_photos \
-    > data_collection.log 2>&1 &
+# 使用start命令在后台运行
+start /B python experiments/auto_data_collector_existing.py ^
+    --klipper-host 10.168.1.123 ^
+    --klipper-port 19255 ^
+    --camera-host 10.168.1.129 ^
+    --camera-port 8080 ^
+    --output data/collected_photos ^
+    > data\collection.log 2>&1
 
-# 查看日志
-tail -f data_collection.log
+# 查看日志（另一个终端）
+type data\collection.log
 ```
 
 您会看到：
@@ -175,6 +173,7 @@ tail -f data_collection.log
   Klipper: 10.168.1.123:19255
   摄像头: 10.168.1.129:8080
   HTTP端口: 5000
+  监听地址: http://10.168.1.118:5000
   输出目录: data/collected_photos
 
 API端点:
@@ -226,10 +225,13 @@ INFO -   处理成功: 1234点, RMS=45.23um
 
 ### 7.1 实时查看状态
 
-在浏览器或终端：
+在Windows PC的浏览器或终端：
 ```bash
 # 查看收集状态
-curl http://10.168.1.129:5000/status
+curl http://localhost:5000/status
+
+# 或从其他机器
+curl http://10.168.1.118:5000/status
 ```
 
 返回：
@@ -249,12 +251,12 @@ curl http://10.168.1.129:5000/status
 
 打印完成后或打印过程中：
 ```bash
-curl -X POST http://10.168.1.129:5000/save
+curl -X POST http://localhost:5000/save
 ```
 
 或：
 ```bash
-curl -X POST http://10.168.1.129:5000/stop
+curl -X POST http://localhost:5000/stop
 ```
 
 数据会保存为：
@@ -285,17 +287,17 @@ data/collected_photos/
 ### Q2: HTTP请求失败
 
 **检查**：
-1. 数据收集服务是否运行：`ps aux | grep auto_data_collector`
-2. IP地址是否正确：`10.168.1.129:5000`
+1. 数据收集服务是否运行：检查Windows任务管理器
+2. IP地址是否正确：`10.168.1.118:5000`
 3. 防火墙是否阻止
 
 **解决**：
 ```bash
-# 测试连接
-curl http://10.168.1.129:5000/status
+# 在Windows PC上测试连接
+curl http://localhost:5000/status
 
-# 如果失败，检查服务状态
-tail -f data/collection.log
+# 如果失败，检查服务日志
+type data\collection.log
 ```
 
 ### Q3: 照片全黑或过曝
@@ -386,7 +388,7 @@ python experiments/apply_correction.py \
 
 ## 快速参考
 
-### 启动服务
+### 启动服务（在Windows PC上）
 ```bash
 python experiments/auto_data_collector_existing.py \
     --klipper-host 10.168.1.123 \
@@ -399,14 +401,14 @@ python experiments/auto_data_collector_existing.py \
 python experiments/test_existing_setup.py
 ```
 
-### 查看日志
+### 查看日志（Windows）
 ```bash
-tail -f data/collection.log
+type data\collection.log
 ```
 
 ### 保存数据
 ```bash
-curl -X POST http://10.168.1.129:5000/save
+curl -X POST http://localhost:5000/save
 ```
 
 ---
