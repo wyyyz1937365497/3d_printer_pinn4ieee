@@ -1,0 +1,12 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^conda activate 3dprint; python experiments/quick_train_simulation\\.py --data_dir data_simulation_3DBenchy_PLA_1h28m_layers_\\* --epochs 3 --batch_size 64$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^conda activate 3dprint; python experiments/quick_train_simulation\\.py --data_dir data_simulation_3DBenchy_PLA_1h28m_layers_\\* --epochs 2 --batch_size 32$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
