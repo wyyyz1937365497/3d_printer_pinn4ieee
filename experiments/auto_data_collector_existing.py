@@ -235,12 +235,36 @@ def capture_layer():
     }
     """
     try:
+        # 尝试获取JSON数据
         data = request.get_json()
-        layer = data.get('layer')
-        filename = data.get('filename')
 
-        if layer is None or filename is None:
-            return jsonify({'error': '缺少layer或filename参数'}), 400
+        # 如果JSON解析失败，尝试从表单数据获取
+        if data is None:
+            layer = request.form.get('layer')
+            filename = request.form.get('filename')
+        else:
+            layer = data.get('layer')
+            filename = data.get('filename')
+
+        # 如果还是没有，尝试从URL参数获取
+        if layer is None:
+            layer = request.args.get('layer')
+        if filename is None:
+            filename = request.args.get('filename', 'unknown')
+
+        # 转换layer为整数
+        if layer is not None:
+            try:
+                layer = int(layer)
+            except (ValueError, TypeError):
+                pass
+
+        if layer is None:
+            logger.warning("缺少layer参数")
+            return jsonify({'error': '缺少layer参数'}), 400
+
+        if filename is None:
+            filename = 'unknown'
 
         logger.info(f"收到拍照请求: 层{layer}, 文件{filename}")
 
