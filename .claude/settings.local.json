@@ -42,7 +42,8 @@
       "Bash(where:*)",
       "Bash(git reset:*)",
       "Bash(git branch:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git ls-tree:*)"
     ]
   }
 }
