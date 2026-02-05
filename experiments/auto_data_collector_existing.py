@@ -33,12 +33,16 @@ import numpy as np
 
 from utils.vision_processor import VisionProcessor
 
+# 确保日志目录存在
+log_dir = Path('data')
+log_dir.mkdir(parents=True, exist_ok=True)
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('data/collection.log'),
+        logging.FileHandler(log_dir / 'collection.log'),
         logging.StreamHandler()
     ]
 )
@@ -84,10 +88,11 @@ class ExistingSetupCollector:
         logger.info(f"  输出目录: {self.output_dir}")
 
     def capture_from_camera(self):
-        """从IP摄像头获取照片"""
+        """从IP摄像头获取照片（高清晰度版本）"""
         try:
-            logger.debug("正在拍照...")
-            response = requests.get(self.camera_snapshot_url, timeout=10)
+            logger.debug("正在拍照（高清晰度模式）...")
+            # 使用更高清晰度的自动对焦照片URL
+            response = requests.get('http://192.168.0.102:8080/photoaf.jpg', timeout=10)
 
             if response.status_code == 200:
                 image_array = np.asarray(bytearray(response.content), dtype=np.uint8)
