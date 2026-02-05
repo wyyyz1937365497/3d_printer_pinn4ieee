@@ -235,16 +235,24 @@ def capture_layer():
     }
     """
     try:
+        # 记录原始请求数据用于调试
+        logger.info(f"收到/capture请求")
+        logger.info(f"  Content-Type: {request.content_type}")
+        logger.info(f"  Raw data: {request.get_data(as_text=True)[:200]}")
+
         # 尝试获取JSON数据
-        data = request.get_json()
+        data = request.get_json(silent=True)
+        logger.info(f"  Parsed JSON: {data}")
 
         # 如果JSON解析失败，尝试从表单数据获取
         if data is None:
             layer = request.form.get('layer')
             filename = request.form.get('filename')
+            logger.info(f"  Form data - layer: {layer}, filename: {filename}")
         else:
             layer = data.get('layer')
             filename = data.get('filename')
+            logger.info(f"  JSON data - layer: {layer}, filename: {filename}")
 
         # 如果还是没有，尝试从URL参数获取
         if layer is None:
@@ -261,12 +269,12 @@ def capture_layer():
 
         if layer is None:
             logger.warning("缺少layer参数")
-            return jsonify({'error': '缺少layer参数'}), 400
+            return jsonify({'error': '缺少layer参数', 'received_data': str(request.get_data(as_text=True))}), 400
 
         if filename is None:
             filename = 'unknown'
 
-        logger.info(f"收到拍照请求: 层{layer}, 文件{filename}")
+        logger.info(f"最终参数 - 层{layer}, 文件{filename}")
 
         # 更新任务
         if collector.current_job['filename'] != filename:
