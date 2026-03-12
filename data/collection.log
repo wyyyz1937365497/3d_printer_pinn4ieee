@@ -24,3 +24,385 @@ API∂Àµ„:
  * Running on http://127.0.0.1:5000
  * Running on http://192.168.0.103:5000
 2026-02-05 23:48:03,446 - INFO - [33mPress CTRL+C to quit[0m
+2026-02-06 07:14:27,963 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 07:14:27,963 - INFO -   Content-Type: application/json
+2026-02-06 07:14:27,963 - INFO -   Raw data: {"layer": -350, "filename": "Tremendous"}
+2026-02-06 07:14:27,963 - INFO -   Parsed JSON: {'layer': -350, 'filename': 'Tremendous'}
+2026-02-06 07:14:27,963 - INFO -   JSON data - layer: -350, filename: Tremendous
+2026-02-06 07:14:27,963 - INFO - ◊Ó÷’≤Œ ˝ - ≤„-350, Œƒº˛Tremendous
+2026-02-06 07:14:27,963 - INFO - ¥¶¿Ì≤„ -350
+2026-02-06 07:14:37,868 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer-350_20260206_071437.jpg
+2026-02-06 07:14:38,075 - INFO -   ¥¶¿Ì≥…π¶: 209µ„, RMS=239427.66um
+2026-02-06 07:14:38,079 - INFO - 192.168.0.112 - - [06/Feb/2026 07:14:38] "POST /capture HTTP/1.1" 200 -
+2026-02-06 07:18:05,119 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 07:18:05,119 - INFO -   Content-Type: application/json
+2026-02-06 07:18:05,119 - INFO -   Raw data: {"layer": 200, "filename": "Tremendous"}
+2026-02-06 07:18:05,119 - INFO -   Parsed JSON: {'layer': 200, 'filename': 'Tremendous'}
+2026-02-06 07:18:05,119 - INFO -   JSON data - layer: 200, filename: Tremendous
+2026-02-06 07:18:05,120 - INFO - ◊Ó÷’≤Œ ˝ - ≤„200, Œƒº˛Tremendous
+2026-02-06 07:18:05,120 - INFO - ¥¶¿Ì≤„ 200
+2026-02-06 07:18:11,946 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer200_20260206_071811.jpg
+2026-02-06 07:18:12,130 - INFO -   ¥¶¿Ì≥…π¶: 206µ„, RMS=306961.72um
+2026-02-06 07:18:12,132 - INFO - 192.168.0.112 - - [06/Feb/2026 07:18:12] "POST /capture HTTP/1.1" 200 -
+2026-02-06 07:27:15,716 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 07:27:15,716 - INFO -   Content-Type: application/json
+2026-02-06 07:27:15,716 - INFO -   Raw data: {"layer": -360, "filename": "Tremendous"}
+2026-02-06 07:27:15,717 - INFO -   Parsed JSON: {'layer': -360, 'filename': 'Tremendous'}
+2026-02-06 07:27:15,717 - INFO -   JSON data - layer: -360, filename: Tremendous
+2026-02-06 07:27:15,717 - INFO - ◊Ó÷’≤Œ ˝ - ≤„-360, Œƒº˛Tremendous
+2026-02-06 07:27:15,717 - INFO - ¥¶¿Ì≤„ -360
+2026-02-06 07:27:22,806 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer-360_20260206_072722.jpg
+2026-02-06 07:27:22,978 - INFO -   ¥¶¿Ì≥…π¶: 191µ„, RMS=171350.70um
+2026-02-06 07:27:22,978 - INFO - 192.168.0.112 - - [06/Feb/2026 07:27:22] "POST /capture HTTP/1.1" 200 -
+2026-02-06 07:29:57,679 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 07:29:57,679 - INFO -   Content-Type: application/json
+2026-02-06 07:29:57,679 - INFO -   Raw data: {"layer": -360, "filename": "Tremendous"}
+2026-02-06 07:29:57,680 - INFO -   Parsed JSON: {'layer': -360, 'filename': 'Tremendous'}
+2026-02-06 07:29:57,680 - INFO -   JSON data - layer: -360, filename: Tremendous
+2026-02-06 07:29:57,680 - INFO - ◊Ó÷’≤Œ ˝ - ≤„-360, Œƒº˛Tremendous
+2026-02-06 07:29:57,680 - INFO - ¥¶¿Ì≤„ -360
+2026-02-06 07:30:08,160 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer-360_20260206_073008.jpg
+2026-02-06 07:30:08,371 - INFO -   ¥¶¿Ì≥…π¶: 259µ„, RMS=118061.04um
+2026-02-06 07:30:08,374 - INFO - 192.168.0.112 - - [06/Feb/2026 07:30:08] "POST /capture HTTP/1.1" 200 -
+2026-02-06 07:31:46,886 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 07:31:46,886 - INFO -   Content-Type: application/json
+2026-02-06 07:31:46,886 - INFO -   Raw data: {"layer": -170, "filename": "Tremendous"}
+2026-02-06 07:31:46,886 - INFO -   Parsed JSON: {'layer': -170, 'filename': 'Tremendous'}
+2026-02-06 07:31:46,886 - INFO -   JSON data - layer: -170, filename: Tremendous
+2026-02-06 07:31:46,886 - INFO - ◊Ó÷’≤Œ ˝ - ≤„-170, Œƒº˛Tremendous
+2026-02-06 07:31:46,886 - INFO - ¥¶¿Ì≤„ -170
+2026-02-06 07:31:54,501 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer-170_20260206_073154.jpg
+2026-02-06 07:31:54,680 - INFO -   ¥¶¿Ì≥…π¶: 191µ„, RMS=208250.69um
+2026-02-06 07:31:54,684 - INFO - 192.168.0.112 - - [06/Feb/2026 07:31:54] "POST /capture HTTP/1.1" 200 -
+2026-02-06 07:40:22,356 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 07:40:22,356 - INFO -   Content-Type: application/json
+2026-02-06 07:40:22,356 - INFO -   Raw data: {"layer": 200, "filename": "Tremendous"}
+2026-02-06 07:40:22,356 - INFO -   Parsed JSON: {'layer': 200, 'filename': 'Tremendous'}
+2026-02-06 07:40:22,356 - INFO -   JSON data - layer: 200, filename: Tremendous
+2026-02-06 07:40:22,356 - INFO - ◊Ó÷’≤Œ ˝ - ≤„200, Œƒº˛Tremendous
+2026-02-06 07:40:22,356 - INFO - ¥¶¿Ì≤„ 200
+2026-02-06 07:40:27,139 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer200_20260206_074027.jpg
+2026-02-06 07:40:27,264 - INFO -   ¥¶¿Ì≥…π¶: 140µ„, RMS=39845.36um
+2026-02-06 07:40:27,268 - INFO - 192.168.0.112 - - [06/Feb/2026 07:40:27] "POST /capture HTTP/1.1" 200 -
+2026-02-06 07:58:34,616 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 07:58:34,617 - INFO -   Content-Type: application/json
+2026-02-06 07:58:34,617 - INFO -   Raw data: {"layer": -259, "filename": "Tremendous"}
+2026-02-06 07:58:34,617 - INFO -   Parsed JSON: {'layer': -259, 'filename': 'Tremendous'}
+2026-02-06 07:58:34,617 - INFO -   JSON data - layer: -259, filename: Tremendous
+2026-02-06 07:58:34,618 - INFO - ◊Ó÷’≤Œ ˝ - ≤„-259, Œƒº˛Tremendous
+2026-02-06 07:58:34,618 - INFO - ¥¶¿Ì≤„ -259
+2026-02-06 07:58:44,824 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer-259_20260206_075844.jpg
+2026-02-06 07:58:44,977 - INFO -   ¥¶¿Ì≥…π¶: 165µ„, RMS=285532.78um
+2026-02-06 07:58:44,977 - INFO - 192.168.0.112 - - [06/Feb/2026 07:58:44] "POST /capture HTTP/1.1" 200 -
+2026-02-06 08:01:19,157 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 08:01:19,157 - INFO -   Content-Type: application/json
+2026-02-06 08:01:19,158 - INFO -   Raw data: {"layer": -350, "filename": "Tremendous"}
+2026-02-06 08:01:19,158 - INFO -   Parsed JSON: {'layer': -350, 'filename': 'Tremendous'}
+2026-02-06 08:01:19,158 - INFO -   JSON data - layer: -350, filename: Tremendous
+2026-02-06 08:01:19,158 - INFO - ◊Ó÷’≤Œ ˝ - ≤„-350, Œƒº˛Tremendous
+2026-02-06 08:01:19,158 - INFO - ¥¶¿Ì≤„ -350
+2026-02-06 08:01:32,447 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer-350_20260206_080132.jpg
+2026-02-06 08:01:32,620 - INFO -   ¥¶¿Ì≥…π¶: 219µ„, RMS=209566.19um
+2026-02-06 08:01:32,623 - INFO - 192.168.0.112 - - [06/Feb/2026 08:01:32] "POST /capture HTTP/1.1" 200 -
+2026-02-06 08:49:01,047 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 08:49:01,047 - INFO -   Content-Type: application/json
+2026-02-06 08:49:01,048 - INFO -   Raw data: {"layer": 200, "filename": "Tremendous"}
+2026-02-06 08:49:01,048 - INFO -   Parsed JSON: {'layer': 200, 'filename': 'Tremendous'}
+2026-02-06 08:49:01,048 - INFO -   JSON data - layer: 200, filename: Tremendous
+2026-02-06 08:49:01,048 - INFO - ◊Ó÷’≤Œ ˝ - ≤„200, Œƒº˛Tremendous
+2026-02-06 08:49:01,048 - INFO - ¥¶¿Ì≤„ 200
+2026-02-06 08:49:09,029 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer200_20260206_084908.jpg
+2026-02-06 08:49:09,222 - INFO -   ¥¶¿Ì≥…π¶: 228µ„, RMS=187290.23um
+2026-02-06 08:49:09,225 - INFO - 192.168.0.112 - - [06/Feb/2026 08:49:09] "POST /capture HTTP/1.1" 200 -
+2026-02-06 08:51:42,307 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 08:51:42,307 - INFO -   Content-Type: application/json
+2026-02-06 08:51:42,307 - INFO -   Raw data: {"layer": 290, "filename": "Tremendous"}
+2026-02-06 08:51:42,307 - INFO -   Parsed JSON: {'layer': 290, 'filename': 'Tremendous'}
+2026-02-06 08:51:42,307 - INFO -   JSON data - layer: 290, filename: Tremendous
+2026-02-06 08:51:42,307 - INFO - ◊Ó÷’≤Œ ˝ - ≤„290, Œƒº˛Tremendous
+2026-02-06 08:51:42,307 - INFO - ¥¶¿Ì≤„ 290
+2026-02-06 08:51:47,774 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer290_20260206_085147.jpg
+2026-02-06 08:51:47,774 - ERROR - ¥¶¿Ì ß∞‹: Œﬁ∑®∂¡»°ÕºœÒ: data\collected_photos\Tremendous_layer290_20260206_085147.jpg
+2026-02-06 08:51:47,791 - ERROR - Traceback (most recent call last):
+  File "F:\TJ\3d_print\3d_printer_pinn4ieee\experiments\auto_data_collector_existing.py", line 132, in process_layer
+    processed = self.vision.preprocess_image(str(image_path))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "F:\TJ\3d_print\3d_printer_pinn4ieee\utils\vision_processor.py", line 41, in preprocess_image
+    raise ValueError(f"Œﬁ∑®∂¡»°ÕºœÒ: {image_path}")
+ValueError: Œﬁ∑®∂¡»°ÕºœÒ: data\collected_photos\Tremendous_layer290_20260206_085147.jpg
+
+2026-02-06 08:51:47,792 - INFO - 192.168.0.112 - - [06/Feb/2026 08:51:47] "POST /capture HTTP/1.1" 200 -
+2026-02-06 08:53:25,403 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 08:53:25,403 - INFO -   Content-Type: application/json
+2026-02-06 08:53:25,403 - INFO -   Raw data: {"layer": 490, "filename": "Tremendous"}
+2026-02-06 08:53:25,404 - INFO -   Parsed JSON: {'layer': 490, 'filename': 'Tremendous'}
+2026-02-06 08:53:25,404 - INFO -   JSON data - layer: 490, filename: Tremendous
+2026-02-06 08:53:25,404 - INFO - ◊Ó÷’≤Œ ˝ - ≤„490, Œƒº˛Tremendous
+2026-02-06 08:53:25,404 - INFO - ¥¶¿Ì≤„ 490
+2026-02-06 08:53:31,628 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer490_20260206_085331.jpg
+2026-02-06 08:53:31,628 - ERROR - ¥¶¿Ì ß∞‹: Œﬁ∑®∂¡»°ÕºœÒ: data\collected_photos\Tremendous_layer490_20260206_085331.jpg
+2026-02-06 08:53:31,629 - ERROR - Traceback (most recent call last):
+  File "F:\TJ\3d_print\3d_printer_pinn4ieee\experiments\auto_data_collector_existing.py", line 132, in process_layer
+    processed = self.vision.preprocess_image(str(image_path))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "F:\TJ\3d_print\3d_printer_pinn4ieee\utils\vision_processor.py", line 41, in preprocess_image
+    raise ValueError(f"Œﬁ∑®∂¡»°ÕºœÒ: {image_path}")
+ValueError: Œﬁ∑®∂¡»°ÕºœÒ: data\collected_photos\Tremendous_layer490_20260206_085331.jpg
+
+2026-02-06 08:53:31,630 - INFO - 192.168.0.112 - - [06/Feb/2026 08:53:31] "POST /capture HTTP/1.1" 200 -
+2026-02-06 08:56:55,368 - INFO -  ˝æ› ’ºØ∆˜≥ı ºªØÕÍ≥…
+2026-02-06 08:56:55,368 - INFO -   Klipper: 10.168.1.123:19255
+2026-02-06 08:56:55,368 - INFO -   …„œÒÕ∑: 10.168.1.129:8080
+2026-02-06 08:56:55,368 - INFO -    ‰≥ˆƒø¬º: data\collected_photos
+2026-02-06 08:56:55,368 - INFO - 
+======================================================================
+2026-02-06 08:56:55,368 - INFO - ◊‘∂Ø ˝æ› ’ºØ∑˛ŒÒ∆Ù∂Ø
+2026-02-06 08:56:55,368 - INFO - ======================================================================
+2026-02-06 08:56:55,368 - INFO -   Klipper: 10.168.1.123:19255
+2026-02-06 08:56:55,368 - INFO -   …„œÒÕ∑: 10.168.1.129:8080
+2026-02-06 08:56:55,368 - INFO -   HTTP∂Àø⁄: 5000
+2026-02-06 08:56:55,368 - INFO -    ‰≥ˆƒø¬º: data/collected_photos
+2026-02-06 08:56:55,368 - INFO - 
+API∂Àµ„:
+2026-02-06 08:56:55,368 - INFO -   POST http://localhost:5000/capture
+2026-02-06 08:56:55,368 - INFO -   GET  http://localhost:5000/status
+2026-02-06 08:56:55,368 - INFO -   POST http://localhost:5000/save
+2026-02-06 08:56:55,368 - INFO -   POST http://localhost:5000/stop
+2026-02-06 08:56:55,368 - INFO - 
+µ»¥˝Klipper«Î«Û...
+
+2026-02-06 08:56:55,393 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.0.103:5000
+2026-02-06 08:56:55,393 - INFO - [33mPress CTRL+C to quit[0m
+2026-02-06 09:02:59,800 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:02:59,800 - INFO -   Content-Type: application/json
+2026-02-06 09:02:59,800 - INFO -   Raw data: {"layer": 200, "filename": "Tremendous"}
+2026-02-06 09:02:59,800 - INFO -   Parsed JSON: {'layer': 200, 'filename': 'Tremendous'}
+2026-02-06 09:02:59,800 - INFO -   JSON data - layer: 200, filename: Tremendous
+2026-02-06 09:02:59,801 - INFO - ◊Ó÷’≤Œ ˝ - ≤„200, Œƒº˛Tremendous
+2026-02-06 09:02:59,801 - INFO - ¥¶¿Ì≤„ 200
+2026-02-06 09:03:08,089 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer200_20260206_090308.jpg
+2026-02-06 09:03:08,262 - INFO -   ¥¶¿Ì≥…π¶: 18µ„, RMS=264777.91um
+2026-02-06 09:03:08,265 - INFO - 192.168.0.112 - - [06/Feb/2026 09:03:08] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:05:38,310 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:05:38,311 - INFO -   Content-Type: application/json
+2026-02-06 09:05:38,311 - INFO -   Raw data: {"layer": 170, "filename": "Tremendous"}
+2026-02-06 09:05:38,311 - INFO -   Parsed JSON: {'layer': 170, 'filename': 'Tremendous'}
+2026-02-06 09:05:38,311 - INFO -   JSON data - layer: 170, filename: Tremendous
+2026-02-06 09:05:38,311 - INFO - ◊Ó÷’≤Œ ˝ - ≤„170, Œƒº˛Tremendous
+2026-02-06 09:05:38,311 - INFO - ¥¶¿Ì≤„ 170
+2026-02-06 09:05:45,114 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer170_20260206_090545.jpg
+2026-02-06 09:05:45,272 - INFO -   ¥¶¿Ì≥…π¶: 62µ„, RMS=83558.99um
+2026-02-06 09:05:45,275 - INFO - 192.168.0.112 - - [06/Feb/2026 09:05:45] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:07:20,217 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:07:20,217 - INFO -   Content-Type: application/json
+2026-02-06 09:07:20,218 - INFO -   Raw data: {"layer": 370, "filename": "Tremendous"}
+2026-02-06 09:07:20,218 - INFO -   Parsed JSON: {'layer': 370, 'filename': 'Tremendous'}
+2026-02-06 09:07:20,218 - INFO -   JSON data - layer: 370, filename: Tremendous
+2026-02-06 09:07:20,218 - INFO - ◊Ó÷’≤Œ ˝ - ≤„370, Œƒº˛Tremendous
+2026-02-06 09:07:20,218 - INFO - ¥¶¿Ì≤„ 370
+2026-02-06 09:07:26,315 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer370_20260206_090726.jpg
+2026-02-06 09:07:26,462 - INFO -   ¥¶¿Ì≥…π¶: 6µ„, RMS=0.00um
+2026-02-06 09:07:26,462 - INFO - 192.168.0.112 - - [06/Feb/2026 09:07:26] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:08:59,871 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:08:59,871 - INFO -   Content-Type: application/json
+2026-02-06 09:08:59,871 - INFO -   Raw data: {"layer": 570, "filename": "Tremendous"}
+2026-02-06 09:08:59,871 - INFO -   Parsed JSON: {'layer': 570, 'filename': 'Tremendous'}
+2026-02-06 09:08:59,871 - INFO -   JSON data - layer: 570, filename: Tremendous
+2026-02-06 09:08:59,871 - INFO - ◊Ó÷’≤Œ ˝ - ≤„570, Œƒº˛Tremendous
+2026-02-06 09:08:59,871 - INFO - ¥¶¿Ì≤„ 570
+2026-02-06 09:09:04,212 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer570_20260206_090904.jpg
+2026-02-06 09:09:04,366 - INFO -   ¥¶¿Ì≥…π¶: 13µ„, RMS=238739.42um
+2026-02-06 09:09:04,368 - INFO - 192.168.0.112 - - [06/Feb/2026 09:09:04] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:10:33,853 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:10:33,853 - INFO -   Content-Type: application/json
+2026-02-06 09:10:33,853 - INFO -   Raw data: {"layer": 770, "filename": "Tremendous"}
+2026-02-06 09:10:33,854 - INFO -   Parsed JSON: {'layer': 770, 'filename': 'Tremendous'}
+2026-02-06 09:10:33,854 - INFO -   JSON data - layer: 770, filename: Tremendous
+2026-02-06 09:10:33,854 - INFO - ◊Ó÷’≤Œ ˝ - ≤„770, Œƒº˛Tremendous
+2026-02-06 09:10:33,854 - INFO - ¥¶¿Ì≤„ 770
+2026-02-06 09:10:37,259 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer770_20260206_091037.jpg
+2026-02-06 09:10:37,410 - INFO -   ¥¶¿Ì≥…π¶: 26µ„, RMS=172663.89um
+2026-02-06 09:10:37,412 - INFO - 192.168.0.112 - - [06/Feb/2026 09:10:37] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:10:55,008 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:10:55,008 - INFO -   Content-Type: application/json
+2026-02-06 09:10:55,009 - INFO -   Raw data: {"layer": 970, "filename": "Tremendous"}
+2026-02-06 09:10:55,009 - INFO -   Parsed JSON: {'layer': 970, 'filename': 'Tremendous'}
+2026-02-06 09:10:55,009 - INFO -   JSON data - layer: 970, filename: Tremendous
+2026-02-06 09:10:55,009 - INFO - ◊Ó÷’≤Œ ˝ - ≤„970, Œƒº˛Tremendous
+2026-02-06 09:10:55,009 - INFO - ¥¶¿Ì≤„ 970
+2026-02-06 09:10:59,788 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer970_20260206_091059.jpg
+2026-02-06 09:10:59,930 - INFO -   ¥¶¿Ì≥…π¶: 11µ„, RMS=261321.78um
+2026-02-06 09:10:59,933 - INFO - 192.168.0.112 - - [06/Feb/2026 09:10:59] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:11:17,339 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:11:17,339 - INFO -   Content-Type: application/json
+2026-02-06 09:11:17,340 - INFO -   Raw data: {"layer": 1170, "filename": "Tremendous"}
+2026-02-06 09:11:17,340 - INFO -   Parsed JSON: {'layer': 1170, 'filename': 'Tremendous'}
+2026-02-06 09:11:17,340 - INFO -   JSON data - layer: 1170, filename: Tremendous
+2026-02-06 09:11:17,340 - INFO - ◊Ó÷’≤Œ ˝ - ≤„1170, Œƒº˛Tremendous
+2026-02-06 09:11:17,340 - INFO - ¥¶¿Ì≤„ 1170
+2026-02-06 09:11:22,213 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer1170_20260206_091122.jpg
+2026-02-06 09:11:22,384 - INFO -   ¥¶¿Ì≥…π¶: 6µ„, RMS=0.00um
+2026-02-06 09:11:22,384 - INFO - 192.168.0.112 - - [06/Feb/2026 09:11:22] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:11:39,799 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:11:39,799 - INFO -   Content-Type: application/json
+2026-02-06 09:11:39,800 - INFO -   Raw data: {"layer": 1369, "filename": "Tremendous"}
+2026-02-06 09:11:39,800 - INFO -   Parsed JSON: {'layer': 1369, 'filename': 'Tremendous'}
+2026-02-06 09:11:39,800 - INFO -   JSON data - layer: 1369, filename: Tremendous
+2026-02-06 09:11:39,800 - INFO - ◊Ó÷’≤Œ ˝ - ≤„1369, Œƒº˛Tremendous
+2026-02-06 09:11:39,800 - INFO - ¥¶¿Ì≤„ 1369
+2026-02-06 09:11:44,259 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer1369_20260206_091144.jpg
+2026-02-06 09:11:44,401 - INFO -   ¥¶¿Ì≥…π¶: 11µ„, RMS=215881.84um
+2026-02-06 09:11:44,401 - INFO - 192.168.0.112 - - [06/Feb/2026 09:11:44] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:12:01,813 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:12:01,813 - INFO -   Content-Type: application/json
+2026-02-06 09:12:01,813 - INFO -   Raw data: {"layer": 1570, "filename": "Tremendous"}
+2026-02-06 09:12:01,813 - INFO -   Parsed JSON: {'layer': 1570, 'filename': 'Tremendous'}
+2026-02-06 09:12:01,813 - INFO -   JSON data - layer: 1570, filename: Tremendous
+2026-02-06 09:12:01,813 - INFO - ◊Ó÷’≤Œ ˝ - ≤„1570, Œƒº˛Tremendous
+2026-02-06 09:12:01,813 - INFO - ¥¶¿Ì≤„ 1570
+2026-02-06 09:12:05,660 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer1570_20260206_091205.jpg
+2026-02-06 09:12:05,813 - INFO -   ¥¶¿Ì≥…π¶: 7µ„, RMS=0.00um
+2026-02-06 09:12:05,815 - INFO - 192.168.0.112 - - [06/Feb/2026 09:12:05] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:12:23,236 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:12:23,236 - INFO -   Content-Type: application/json
+2026-02-06 09:12:23,236 - INFO -   Raw data: {"layer": 1770, "filename": "Tremendous"}
+2026-02-06 09:12:23,236 - INFO -   Parsed JSON: {'layer': 1770, 'filename': 'Tremendous'}
+2026-02-06 09:12:23,237 - INFO -   JSON data - layer: 1770, filename: Tremendous
+2026-02-06 09:12:23,237 - INFO - ◊Ó÷’≤Œ ˝ - ≤„1770, Œƒº˛Tremendous
+2026-02-06 09:12:23,237 - INFO - ¥¶¿Ì≤„ 1770
+2026-02-06 09:12:27,385 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer1770_20260206_091227.jpg
+2026-02-06 09:12:27,550 - INFO -   ¥¶¿Ì≥…π¶: 41µ„, RMS=141523.03um
+2026-02-06 09:12:27,552 - INFO - 192.168.0.112 - - [06/Feb/2026 09:12:27] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:12:44,961 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:12:44,961 - INFO -   Content-Type: application/json
+2026-02-06 09:12:44,961 - INFO -   Raw data: {"layer": 1970, "filename": "Tremendous"}
+2026-02-06 09:12:44,961 - INFO -   Parsed JSON: {'layer': 1970, 'filename': 'Tremendous'}
+2026-02-06 09:12:44,962 - INFO -   JSON data - layer: 1970, filename: Tremendous
+2026-02-06 09:12:44,962 - INFO - ◊Ó÷’≤Œ ˝ - ≤„1970, Œƒº˛Tremendous
+2026-02-06 09:12:44,962 - INFO - ¥¶¿Ì≤„ 1970
+2026-02-06 09:12:49,650 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer1970_20260206_091249.jpg
+2026-02-06 09:12:49,789 - INFO -   ¥¶¿Ì≥…π¶: 46µ„, RMS=128759.10um
+2026-02-06 09:12:49,791 - INFO - 192.168.0.112 - - [06/Feb/2026 09:12:49] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:13:07,238 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:13:07,238 - INFO -   Content-Type: application/json
+2026-02-06 09:13:07,238 - INFO -   Raw data: {"layer": 2170, "filename": "Tremendous"}
+2026-02-06 09:13:07,239 - INFO -   Parsed JSON: {'layer': 2170, 'filename': 'Tremendous'}
+2026-02-06 09:13:07,239 - INFO -   JSON data - layer: 2170, filename: Tremendous
+2026-02-06 09:13:07,239 - INFO - ◊Ó÷’≤Œ ˝ - ≤„2170, Œƒº˛Tremendous
+2026-02-06 09:13:07,239 - INFO - ¥¶¿Ì≤„ 2170
+2026-02-06 09:13:12,360 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer2170_20260206_091312.jpg
+2026-02-06 09:13:12,501 - INFO -   ¥¶¿Ì≥…π¶: 56µ„, RMS=149967.62um
+2026-02-06 09:13:12,504 - INFO - 192.168.0.112 - - [06/Feb/2026 09:13:12] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:13:29,909 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:13:29,910 - INFO -   Content-Type: application/json
+2026-02-06 09:13:29,910 - INFO -   Raw data: {"layer": 2370, "filename": "Tremendous"}
+2026-02-06 09:13:29,910 - INFO -   Parsed JSON: {'layer': 2370, 'filename': 'Tremendous'}
+2026-02-06 09:13:29,910 - INFO -   JSON data - layer: 2370, filename: Tremendous
+2026-02-06 09:13:29,910 - INFO - ◊Ó÷’≤Œ ˝ - ≤„2370, Œƒº˛Tremendous
+2026-02-06 09:13:29,910 - INFO - ¥¶¿Ì≤„ 2370
+2026-02-06 09:13:34,148 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer2370_20260206_091334.jpg
+2026-02-06 09:13:34,303 - INFO -   ¥¶¿Ì≥…π¶: 6µ„, RMS=0.00um
+2026-02-06 09:13:34,305 - INFO - 192.168.0.112 - - [06/Feb/2026 09:13:34] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:13:51,726 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:13:51,726 - INFO -   Content-Type: application/json
+2026-02-06 09:13:51,726 - INFO -   Raw data: {"layer": 2570, "filename": "Tremendous"}
+2026-02-06 09:13:51,727 - INFO -   Parsed JSON: {'layer': 2570, 'filename': 'Tremendous'}
+2026-02-06 09:13:51,727 - INFO -   JSON data - layer: 2570, filename: Tremendous
+2026-02-06 09:13:51,727 - INFO - ◊Ó÷’≤Œ ˝ - ≤„2570, Œƒº˛Tremendous
+2026-02-06 09:13:51,727 - INFO - ¥¶¿Ì≤„ 2570
+2026-02-06 09:13:56,335 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer2570_20260206_091356.jpg
+2026-02-06 09:13:56,479 - INFO -   ¥¶¿Ì≥…π¶: 6µ„, RMS=0.00um
+2026-02-06 09:13:56,479 - INFO - 192.168.0.112 - - [06/Feb/2026 09:13:56] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:14:13,901 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:14:13,901 - INFO -   Content-Type: application/json
+2026-02-06 09:14:13,902 - INFO -   Raw data: {"layer": 2770, "filename": "Tremendous"}
+2026-02-06 09:14:13,902 - INFO -   Parsed JSON: {'layer': 2770, 'filename': 'Tremendous'}
+2026-02-06 09:14:13,902 - INFO -   JSON data - layer: 2770, filename: Tremendous
+2026-02-06 09:14:13,902 - INFO - ◊Ó÷’≤Œ ˝ - ≤„2770, Œƒº˛Tremendous
+2026-02-06 09:14:13,902 - INFO - ¥¶¿Ì≤„ 2770
+2026-02-06 09:14:18,600 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer2770_20260206_091418.jpg
+2026-02-06 09:14:18,756 - INFO -   ¥¶¿Ì≥…π¶: 6µ„, RMS=0.00um
+2026-02-06 09:14:18,759 - INFO - 192.168.0.112 - - [06/Feb/2026 09:14:18] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:14:36,185 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:14:36,185 - INFO -   Content-Type: application/json
+2026-02-06 09:14:36,185 - INFO -   Raw data: {"layer": 2970, "filename": "Tremendous"}
+2026-02-06 09:14:36,185 - INFO -   Parsed JSON: {'layer': 2970, 'filename': 'Tremendous'}
+2026-02-06 09:14:36,186 - INFO -   JSON data - layer: 2970, filename: Tremendous
+2026-02-06 09:14:36,186 - INFO - ◊Ó÷’≤Œ ˝ - ≤„2970, Œƒº˛Tremendous
+2026-02-06 09:14:36,186 - INFO - ¥¶¿Ì≤„ 2970
+2026-02-06 09:14:41,232 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer2970_20260206_091441.jpg
+2026-02-06 09:14:41,372 - INFO -   ¥¶¿Ì≥…π¶: 68µ„, RMS=107156.98um
+2026-02-06 09:14:41,374 - INFO - 192.168.0.112 - - [06/Feb/2026 09:14:41] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:14:58,822 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:14:58,822 - INFO -   Content-Type: application/json
+2026-02-06 09:14:58,822 - INFO -   Raw data: {"layer": 3170, "filename": "Tremendous"}
+2026-02-06 09:14:58,822 - INFO -   Parsed JSON: {'layer': 3170, 'filename': 'Tremendous'}
+2026-02-06 09:14:58,822 - INFO -   JSON data - layer: 3170, filename: Tremendous
+2026-02-06 09:14:58,822 - INFO - ◊Ó÷’≤Œ ˝ - ≤„3170, Œƒº˛Tremendous
+2026-02-06 09:14:58,822 - INFO - ¥¶¿Ì≤„ 3170
+2026-02-06 09:15:03,932 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer3170_20260206_091503.jpg
+2026-02-06 09:15:04,091 - INFO -   ¥¶¿Ì≥…π¶: 6µ„, RMS=0.00um
+2026-02-06 09:15:04,093 - INFO - 192.168.0.112 - - [06/Feb/2026 09:15:04] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:15:21,510 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:15:21,510 - INFO -   Content-Type: application/json
+2026-02-06 09:15:21,510 - INFO -   Raw data: {"layer": 3370, "filename": "Tremendous"}
+2026-02-06 09:15:21,510 - INFO -   Parsed JSON: {'layer': 3370, 'filename': 'Tremendous'}
+2026-02-06 09:15:21,510 - INFO -   JSON data - layer: 3370, filename: Tremendous
+2026-02-06 09:15:21,510 - INFO - ◊Ó÷’≤Œ ˝ - ≤„3370, Œƒº˛Tremendous
+2026-02-06 09:15:21,510 - INFO - ¥¶¿Ì≤„ 3370
+2026-02-06 09:15:26,673 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer3370_20260206_091526.jpg
+2026-02-06 09:15:26,807 - INFO -   ¥¶¿Ì≥…π¶: 5µ„, RMS=0.00um
+2026-02-06 09:15:26,809 - INFO - 192.168.0.112 - - [06/Feb/2026 09:15:26] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:15:44,262 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:15:44,263 - INFO -   Content-Type: application/json
+2026-02-06 09:15:44,263 - INFO -   Raw data: {"layer": 3570, "filename": "Tremendous"}
+2026-02-06 09:15:44,263 - INFO -   Parsed JSON: {'layer': 3570, 'filename': 'Tremendous'}
+2026-02-06 09:15:44,263 - INFO -   JSON data - layer: 3570, filename: Tremendous
+2026-02-06 09:15:44,263 - INFO - ◊Ó÷’≤Œ ˝ - ≤„3570, Œƒº˛Tremendous
+2026-02-06 09:15:44,263 - INFO - ¥¶¿Ì≤„ 3570
+2026-02-06 09:15:50,757 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer3570_20260206_091550.jpg
+2026-02-06 09:15:50,889 - INFO -   ¥¶¿Ì≥…π¶: 14µ„, RMS=190209.44um
+2026-02-06 09:15:50,891 - INFO - 192.168.0.112 - - [06/Feb/2026 09:15:50] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:16:08,322 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:16:08,322 - INFO -   Content-Type: application/json
+2026-02-06 09:16:08,323 - INFO -   Raw data: {"layer": 3770, "filename": "Tremendous"}
+2026-02-06 09:16:08,323 - INFO -   Parsed JSON: {'layer': 3770, 'filename': 'Tremendous'}
+2026-02-06 09:16:08,323 - INFO -   JSON data - layer: 3770, filename: Tremendous
+2026-02-06 09:16:08,323 - INFO - ◊Ó÷’≤Œ ˝ - ≤„3770, Œƒº˛Tremendous
+2026-02-06 09:16:08,323 - INFO - ¥¶¿Ì≤„ 3770
+2026-02-06 09:16:13,577 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer3770_20260206_091613.jpg
+2026-02-06 09:16:13,712 - INFO -   ¥¶¿Ì≥…π¶: 5µ„, RMS=0.00um
+2026-02-06 09:16:13,714 - INFO - 192.168.0.112 - - [06/Feb/2026 09:16:13] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:16:31,176 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:16:31,176 - INFO -   Content-Type: application/json
+2026-02-06 09:16:31,176 - INFO -   Raw data: {"layer": 3970, "filename": "Tremendous"}
+2026-02-06 09:16:31,176 - INFO -   Parsed JSON: {'layer': 3970, 'filename': 'Tremendous'}
+2026-02-06 09:16:31,177 - INFO -   JSON data - layer: 3970, filename: Tremendous
+2026-02-06 09:16:31,177 - INFO - ◊Ó÷’≤Œ ˝ - ≤„3970, Œƒº˛Tremendous
+2026-02-06 09:16:31,177 - INFO - ¥¶¿Ì≤„ 3970
+2026-02-06 09:16:36,179 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer3970_20260206_091636.jpg
+2026-02-06 09:16:36,320 - INFO -   ¥¶¿Ì≥…π¶: 49µ„, RMS=164652.45um
+2026-02-06 09:16:36,323 - INFO - 192.168.0.112 - - [06/Feb/2026 09:16:36] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:16:58,028 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:16:58,029 - INFO -   Content-Type: application/json
+2026-02-06 09:16:58,029 - INFO -   Raw data: {"layer": 4170, "filename": "Tremendous"}
+2026-02-06 09:16:58,029 - INFO -   Parsed JSON: {'layer': 4170, 'filename': 'Tremendous'}
+2026-02-06 09:16:58,029 - INFO -   JSON data - layer: 4170, filename: Tremendous
+2026-02-06 09:16:58,029 - INFO - ◊Ó÷’≤Œ ˝ - ≤„4170, Œƒº˛Tremendous
+2026-02-06 09:16:58,029 - INFO - ¥¶¿Ì≤„ 4170
+2026-02-06 09:17:03,051 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer4170_20260206_091703.jpg
+2026-02-06 09:17:03,208 - INFO -   ¥¶¿Ì≥…π¶: 51µ„, RMS=143509.45um
+2026-02-06 09:17:03,210 - INFO - 192.168.0.112 - - [06/Feb/2026 09:17:03] "POST /capture HTTP/1.1" 200 -
+2026-02-06 09:17:59,728 - INFO -  ’µΩ/capture«Î«Û
+2026-02-06 09:17:59,728 - INFO -   Content-Type: application/json
+2026-02-06 09:17:59,729 - INFO -   Raw data: {"layer": 4370, "filename": "Tremendous"}
+2026-02-06 09:17:59,729 - INFO -   Parsed JSON: {'layer': 4370, 'filename': 'Tremendous'}
+2026-02-06 09:17:59,729 - INFO -   JSON data - layer: 4370, filename: Tremendous
+2026-02-06 09:17:59,729 - INFO - ◊Ó÷’≤Œ ˝ - ≤„4370, Œƒº˛Tremendous
+2026-02-06 09:17:59,729 - INFO - ¥¶¿Ì≤„ 4370
+2026-02-06 09:18:04,743 - INFO -   ÕºœÒ“—±£¥Ê: Tremendous_layer4370_20260206_091804.jpg
+2026-02-06 09:18:04,913 - INFO -   ¥¶¿Ì≥…π¶: 6µ„, RMS=0.00um
+2026-02-06 09:18:04,915 - INFO - 192.168.0.112 - - [06/Feb/2026 09:18:04] "POST /capture HTTP/1.1" 200 -
